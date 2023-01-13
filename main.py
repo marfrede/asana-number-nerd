@@ -23,7 +23,7 @@ async def home(request: Request):
 
 def get_oauth_url() -> str:
     client_id = "1203713968616919"
-    redirect_uri = "http://127.0.0.1:8000"
+    redirect_uri = "https://n4w6bi.deta.dev/home"
     response_type = "code"
     state = "thisIsARandomString"
     code_challenge_method = "S256"
