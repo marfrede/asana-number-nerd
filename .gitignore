@@ -1,0 +1,12 @@
+# DETA files
+.deta/
+
+# Python bytecode files
+*.pyc
+__pycache__/
+
+# Environmental variables
+.env
+
+# Virtual Environment
+venv/
