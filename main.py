@@ -18,7 +18,7 @@ async def root():
 
 @app.get("/home", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("home.html", {"request": request, "oauth_url": get_oauth_url()})
+    return templates.TemplateResponse("index.html", {"request": request, "oauth_url": get_oauth_url()})
 
 
 def get_oauth_url() -> str:
