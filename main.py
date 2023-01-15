@@ -22,10 +22,14 @@ templates = Jinja2Templates(directory="templates")
 #  SETTINGS
 
 class Env(BaseSettings):
-    '''oauth2 variables'''
+    '''env variables'''
+    # asana app oauth2
     number_nerd_callback: str = "https://www.asana-number-nerd.com/oauth/callback"
     client_id: str = "1203721176797529"
     client_secret: str
+
+    # deta project
+    deta_project_key: str
 
     class Config:
         '''read variables from dotenv file'''
