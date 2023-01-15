@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 from functools import lru_cache
-from typing import List, TypedDict, Union
+from typing import Generator, Literal, TypedDict, Union
 
 from asana import Client as AsanaClient
 from deta import Deta
@@ -66,10 +66,10 @@ class AsanaToken(TypedDict):
     data: AsanaUser
 
 
-class AsanaWorkspace(TypedDict):
+class AsanaObject(TypedDict):
     '''asana workspace from asana API'''
     gid: str  # e.g. "12345"
-    resource_type: str  # e.g. "workspace"
+    resource_type: Literal["workspace", "project"]
     name: str  # e.g. "My Company Workspace
 
 
@@ -130,20 +130,28 @@ async def setup(request: Request):
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
     asana_client: AsanaClient = create_asana_client_pat(access_token["access_token"])
     asana_user: AsanaUser = access_token["data"]
-    workspaces: List[AsanaWorkspace] = get_asana_workspaces(asana_client)
-    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": asana_user, "workspaces": workspaces})
+    workspaces = []
+    for workspace in get_asana_workspaces(asana_client):
+        projects = list(get_asana_projects(client_pat=asana_client, workspace=workspace))
+        workspace["projects"] = projects
+        workspaces.append(workspace)
+    return templates.TemplateResponse("setup.jinja2", {
+        "request": request,
+        "asana_user": asana_user,
+        "workspaces": workspaces,
+    })
 
 
 # HELPER
 
 
-async def get_authorize_asana_url(client: AsanaClient):
+async def get_authorize_asana_url(client_oauth: AsanaClient):
     '''
         generates the asana url to begin the oauth grant
         cerates a random state string
         attaches state to url
     '''
-    (url, state) = client.session.authorization_url()
+    (url, state) = client_oauth.session.authorization_url()
     return (url, state)
 
 
@@ -161,6 +169,11 @@ def create_asana_client_pat(personal_access_token: str) -> AsanaClient:
     return AsanaClient.access_token(personal_access_token)
 
 
-def get_asana_workspaces(client: AsanaClient) -> List[AsanaWorkspace]:
+def get_asana_workspaces(client_pat: AsanaClient) -> Generator[AsanaObject, None, None]:
     '''fetch users workspaces'''
-    return client.workspaces.get_workspaces()
+    return client_pat.workspaces.get_workspaces()
+
+
+def get_asana_projects(client_pat: AsanaClient, workspace: AsanaObject) -> Generator[AsanaObject, None, None]:
+    '''fetch users workspaces'''
+    return client_pat.projects.get_projects_for_workspace(workspace["gid"])

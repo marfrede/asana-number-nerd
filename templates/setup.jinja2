@@ -5,20 +5,33 @@
 	<title>Asana Number Nerd</title>
 	<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
 	<link rel="stylesheet" href="/static/css/styles.css">
+	<link rel="stylesheet" href="/static/css/form-styles.css">
 </head>
 
 <body>
 	<div class="container">
+
 		<div class="header">
 			<img src="/static/assets/appicon.png" alt="" srcset="" width="200px">
 			<h1><span>Asana<br></span><span>Number<br></span><span>Nerd</span></h1>
 		</div>
+
 		<div class="content">
 			<p><strong>Asana Number Nerd</strong> has just one simple task: to <span class="highlight">number your Asana
 					tasks</span>.</p>
-			<p>Logged in as {{asana_user.email}}</p>
+			<small>Logged in as {{asana_user.email}}</small>
+			<p>Select the projects in which the task numbering is to be activated.</p>
+
 			{% for ws in workspaces %}
-			{{ws["name"]}}
+			<div style="margin-bottom: 20px;">
+				<p>{{ws["name"]}}</p>
+				{% for p in ws["projects"] %}
+				<div class="input-group">
+					<input class="project-input" id="{{p['gid']}}" name="{{p['gid']}}" type="checkbox" />
+					<label class="project-label" for="{{p['gid']}}">{{p['name']}}</label>
+				</div>
+				{% endfor %}
+			</div>
 			{% endfor %}
 		</div>
 	</div>
