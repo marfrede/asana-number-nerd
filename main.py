@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Union
 
-import asana
+from asana import Client as AsanaClient
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -71,13 +71,18 @@ async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
         display the asana number nerd home page with description and option ask
         asana to authorize this app with the users private asana account
     '''
-    (url, state) = await get_authorize_asana_url(oauth_env=oauth_env)
+    (url, state) = await get_authorize_asana_url(create_asana_client(oauth_env))
     request.session["state"] = state
     return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": url, 'state': state})
 
 
 @app.get("/oauth/callback")
-async def oauth_callback(request: Request, code: Union[str, None] = None, state: Union[str, None] = None, oauth_env: OauthEnv = Depends(get_oauth_env)):
+async def oauth_callback(
+        request: Request,
+        code: Union[str, None] = None,
+        state: Union[str, None] = None,
+        oauth_env: OauthEnv = Depends(get_oauth_env)
+):
     '''
         callback ednpoint for asanas oauth step 1
         after the user grants permission (allows) (or denies) the asana api will
@@ -87,30 +92,28 @@ async def oauth_callback(request: Request, code: Union[str, None] = None, state:
     '''
     if not code or not state or not request.session.get("state", None) == state:
         return RedirectResponse("/")
-    # request.session["code"] = code
-    client = asana.Client.oauth(
-        client_id=oauth_env.client_id,
-        client_secret=oauth_env.client_secret,
-        redirect_uri=oauth_env.number_nerd_url
-    )
-    access_token: AsanaToken = client.session.fetch_token(code=code)
+    access_token: AsanaToken = create_asana_client(oauth_env).session.fetch_token(code=code)
     return {"access_token": access_token}
 
 
 # HELPER
 
 
-async def get_authorize_asana_url(oauth_env: OauthEnv):
+async def get_authorize_asana_url(client: AsanaClient):
     '''
         generates the asana url to begin the oauth grant
         cerates a random state string
         attaches state to url
     '''
-    client = asana.Client.oauth(
+    (url, state) = client.session.authorization_url()
+    return (url, state)
+
+
+def create_asana_client(oauth_env: OauthEnv) -> AsanaClient:
+    '''cerate specific http client for asana API'''
+    return AsanaClient.oauth(
         client_id=oauth_env.client_id,
         client_secret=oauth_env.client_secret,
         redirect_uri=oauth_env.number_nerd_url
 
     )
-    (url, state) = client.session.authorization_url()
-    return (url, state)
