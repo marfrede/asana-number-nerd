@@ -12,7 +12,7 @@ from pydantic import BaseSettings
 from starlette.middleware.sessions import SessionMiddleware
 
 app = FastAPI()
-app.add_middleware(SessionMiddleware, secret_key="some-random-string")
+app.add_middleware(SessionMiddleware, secret_key="KpGtHMS3XgH5b7z9us!@e79GlY$b")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -59,13 +59,13 @@ class AsanaToken:
 # ROUTES
 
 
-@app.get("/")
+@app.get("/home", response_class=RedirectResponse)
 async def root():
     '''root'''
-    return RedirectResponse("/home")
+    return RedirectResponse("/")
 
 
-@app.get("/home", response_class=HTMLResponse)
+@app.get("/", response_class=HTMLResponse)
 async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
     '''
         display the asana number nerd home page with description and option ask
@@ -77,12 +77,12 @@ async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
     return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": url})
 
 
-@app.get("/oauth/callback")
+@app.get("/oauth/callback", response_class=RedirectResponse)
 async def oauth_callback(
-        request: Request,
-        code: Union[str, None] = None,
-        state: Union[str, None] = None,
-        oauth_env: OauthEnv = Depends(get_oauth_env)
+    request: Request,
+    code: Union[str, None] = None,
+    state: Union[str, None] = None,
+    oauth_env: OauthEnv = Depends(get_oauth_env)
 ):
     '''
         callback ednpoint for asanas oauth step 1
@@ -95,7 +95,14 @@ async def oauth_callback(
         return RedirectResponse("/")
     asana_client: AsanaClient = create_asana_client(oauth_env)
     access_token: AsanaToken = asana_client.session.fetch_token(code=code)
-    return {"access_token": access_token}
+    # request.session["asana_user"] = access_token.data
+    return RedirectResponse("/au")
+
+
+@app.get("/au", response_class=HTMLResponse)
+async def authenticated(request: Request):
+    # asana_user = request.session.get("asana_user")
+    return templates.TemplateResponse("authenticated.html", {"request": request})
 
 
 # HELPER
