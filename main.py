@@ -24,7 +24,7 @@ templates = Jinja2Templates(directory="templates")
 
 class OauthEnv(BaseSettings):
     '''oauth2 variables'''
-    number_nerd_url: str = "https://n4w6bi.deta.dev"
+    number_nerd_url: str = "https://www.asana-number-nerd.com"
     client_id: str = "1203721176797529"
 
     class Config:
