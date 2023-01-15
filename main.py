@@ -74,7 +74,7 @@ async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
     asana_client: AsanaClient = create_asana_client(oauth_env)
     url, state = await get_authorize_asana_url(asana_client)
     request.session["state"] = state
-    return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": url, 'state': state})
+    return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": url})
 
 
 @app.get("/oauth/callback")
