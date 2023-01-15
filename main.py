@@ -117,7 +117,8 @@ async def setup(request: Request):
     '''site for the authenticated user'''
     asana_user_id: str = request.session.get("asana_user_id")
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
-    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": access_token["data"]})
+    asana_user: AsanaUser = access_token["data"]
+    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": asana_user})
 
 
 # HELPER
