@@ -24,6 +24,7 @@ templates = Jinja2Templates(directory="templates")
 
 class OauthEnv(BaseSettings):
     '''oauth2 variables'''
+    number_nerd_url: str = "https://n4w6bi.deta.dev"
     client_id: str = "1203721176797529"
 
     class Config:
@@ -78,7 +79,7 @@ async def oauth_callback(request: Request, code: Union[str, None] = None, state:
 def get_authorize_asana_url(oauth_env: OauthEnv, state: str) -> str:
     '''generates the href link to begin the oauth grant'''
     asana_oauth_link = "https://app.asana.com/-/oauth_authorize"
-    redirect_uri = "https://n4w6bi.deta.dev/oauth/callback"
+    redirect_uri = f"{oauth_env.number_nerd_url}/oauth/callback"
     response_type = "code"
     code_challenge_method = "S256"
     code_challenge = "671608a33392cee13585063953a86d396dffd15222d83ef958f43a2804ac7fb2"
