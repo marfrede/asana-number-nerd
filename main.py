@@ -23,7 +23,7 @@ templates = Jinja2Templates(directory="templates")
 
 class OauthEnv(BaseSettings):
     '''oauth2 variables'''
-    number_nerd_url: str = "https://www.asana-number-nerd.com/oauth/callback"
+    number_nerd_callback: str = "https://www.asana-number-nerd.com/oauth/callback"
     client_id: str = "1203721176797529"
     client_secret: str
 
@@ -114,6 +114,6 @@ def create_asana_client(oauth_env: OauthEnv) -> AsanaClient:
     return AsanaClient.oauth(
         client_id=oauth_env.client_id,
         client_secret=oauth_env.client_secret,
-        redirect_uri=oauth_env.number_nerd_url
+        redirect_uri=oauth_env.number_nerd_callback
 
     )
