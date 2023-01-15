@@ -4,6 +4,7 @@ from functools import lru_cache
 from typing import TypedDict, Union
 
 from asana import Client as AsanaClient
+from deta import Deta
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -11,12 +12,17 @@ from fastapi.templating import Jinja2Templates
 from pydantic import BaseSettings
 from starlette.middleware.sessions import SessionMiddleware
 
+# init fastapi
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="KpGtHMS3XgH5b7z9us!@e79GlY$b")
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# init jinja templates
 templates = Jinja2Templates(directory="templates")
+
+# init deta databse
+deta = Deta()
+db = deta.Base("ann_db")  # This how to connect to or create a database.
 
 
 #  SETTINGS
@@ -100,16 +106,18 @@ async def oauth_callback(
         return RedirectResponse("/")
     asana_client: AsanaClient = create_asana_client(env)
     access_token: AsanaToken = asana_client.session.fetch_token(code=code)
-    asana_user: AsanaTokenData = access_token["data"]
-    request.session["asana_user"] = asana_user
+    asana_user_id: str = access_token['data']["id"]
+    request.session['asana_user_id'] = asana_user_id
+    db.put(access_token, f"user_{asana_user_id}")
     return RedirectResponse("/setup")
 
 
 @app.get("/setup", response_class=HTMLResponse)
 async def setup(request: Request):
     '''site for the authenticated user'''
-    asana_user: AsanaTokenData = request.session.get("asana_user")
-    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": asana_user})
+    asana_user_id: str = request.session.get("asana_user_id")
+    access_token: AsanaToken = db.get(f"user_{asana_user_id}")
+    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": access_token["data"]})
 
 
 # HELPER
