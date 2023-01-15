@@ -50,7 +50,7 @@ def get_env():
 
 # CLASSES
 
-class AsanaTokenData(TypedDict):
+class AsanaUser(TypedDict):
     '''part of asana token'''
     id: str  # e.g. "4673218951",
     name: str  # e.g. "Greg Sanchez",
@@ -63,7 +63,7 @@ class AsanaToken(TypedDict):
     expires_in: int  # e.g. 3600,
     token_type: str  # e.g. "bearer",
     refresh_token: str  # e.g. "hjkl325hjkl4325hj4kl32fjds",
-    data: AsanaTokenData
+    data: AsanaUser
 
 
 # ROUTES
