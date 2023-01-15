@@ -104,7 +104,7 @@ async def oauth_callback(
 async def setup(request: Request):
     '''site for the authenticated user'''
     asana_user: AsanaTokenData = request.session.get("asana_user")
-    return templates.TemplateResponse("authenticated.html", {"request": request, "asana_user": asana_user})
+    return templates.TemplateResponse("setup.html", {"request": request, "asana_user": asana_user})
 
 
 # HELPER
