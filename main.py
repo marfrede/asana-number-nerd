@@ -69,6 +69,7 @@ async def oauth_callback(request: Request, code: Union[str, None] = None, state:
     if not code or not state or not request.session.get("state", None) == state:
         return RedirectResponse("/")
     request.session["code"] = code
+    return {"success: ": code}
 
 
 # HELPER
