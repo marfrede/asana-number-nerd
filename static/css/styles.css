@@ -63,7 +63,8 @@ body {
 	transform: rotate(-1deg);
 }
 
-a {
+a,
+button {
 	background: #2c2c2c;
 	border-radius: 999px;
 	box-shadow: #2c2c2c 0 10px 20px -10px;
