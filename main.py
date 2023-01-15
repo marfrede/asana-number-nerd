@@ -21,7 +21,7 @@ templates = Jinja2Templates(directory="templates")
 
 #  SETTINGS
 
-class OauthEnv(BaseSettings):
+class Env(BaseSettings):
     '''oauth2 variables'''
     number_nerd_callback: str = "https://www.asana-number-nerd.com/oauth/callback"
     client_id: str = "1203721176797529"
@@ -33,9 +33,9 @@ class OauthEnv(BaseSettings):
 
 
 @lru_cache()
-def get_oauth_env():
-    '''get_oauth_env'''
-    return OauthEnv()
+def get_env():
+    '''get env variables'''
+    return Env()
 
 
 # CLASSES
@@ -66,13 +66,13 @@ async def root():
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
+async def home(request: Request, env: Env = Depends(get_env)):
     '''
         homepage
         display the asana number nerd (ann) description
         display href button to auth ann with the users private asana account
     '''
-    asana_client: AsanaClient = create_asana_client(oauth_env)
+    asana_client: AsanaClient = create_asana_client(env)
     url, state = await get_authorize_asana_url(asana_client)
     request.session["state"] = state
     return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": url})
@@ -83,7 +83,7 @@ async def oauth_callback(
     request: Request,
     code: Union[str, None] = None,
     state: Union[str, None] = None,
-    oauth_env: OauthEnv = Depends(get_oauth_env)
+    env: Env = Depends(get_env)
 ):
     '''
         callback ednpoint for asanas oauth step 1
@@ -94,7 +94,7 @@ async def oauth_callback(
     '''
     if not code or not state or not request.session.get("state", None) == state:
         return RedirectResponse("/")
-    asana_client: AsanaClient = create_asana_client(oauth_env)
+    asana_client: AsanaClient = create_asana_client(env)
     access_token: AsanaToken = asana_client.session.fetch_token(code=code)
     asana_user: AsanaTokenData = access_token["data"]
     request.session["asana_user"] = asana_user
@@ -121,10 +121,10 @@ async def get_authorize_asana_url(client: AsanaClient):
     return (url, state)
 
 
-def create_asana_client(oauth_env: OauthEnv) -> AsanaClient:
+def create_asana_client(env: Env) -> AsanaClient:
     '''cerate specific http client for asana API'''
     return AsanaClient.oauth(
-        client_id=oauth_env.client_id,
-        client_secret=oauth_env.client_secret,
-        redirect_uri=oauth_env.number_nerd_callback
+        client_id=env.client_id,
+        client_secret=env.client_secret,
+        redirect_uri=env.number_nerd_callback
     )
