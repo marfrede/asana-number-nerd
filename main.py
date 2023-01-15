@@ -124,7 +124,7 @@ async def oauth_callback(
 
 
 @app.get("/setup", response_class=HTMLResponse)
-async def setup(request: Request, env: Env = Depends(get_env)):
+async def setup(request: Request):
     '''site for the authenticated user'''
     asana_user_id: str = request.session.get("asana_user_id")
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
