@@ -71,7 +71,8 @@ async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
         display the asana number nerd home page with description and option ask
         asana to authorize this app with the users private asana account
     '''
-    (url, state) = await get_authorize_asana_url(create_asana_client(oauth_env))
+    asana_client: AsanaClient = create_asana_client(oauth_env)
+    url, state = await get_authorize_asana_url(asana_client)
     request.session["state"] = state
     return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": url, 'state': state})
 
@@ -92,7 +93,8 @@ async def oauth_callback(
     '''
     if not code or not state or not request.session.get("state", None) == state:
         return RedirectResponse("/")
-    access_token: AsanaToken = create_asana_client(oauth_env).session.fetch_token(code=code)
+    asana_client: AsanaClient = create_asana_client(oauth_env)
+    access_token: AsanaToken = asana_client.session.fetch_token(code=code)
     return {"access_token": access_token}
 
 
