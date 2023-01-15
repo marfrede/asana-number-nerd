@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 from functools import lru_cache
-from typing import Union
+from typing import TypedDict, Union
 
 from asana import Client as AsanaClient
 from fastapi import Depends, FastAPI, Request
@@ -40,14 +40,14 @@ def get_oauth_env():
 
 # CLASSES
 
-class AsanaTokenData:
+class AsanaTokenData(TypedDict):
     '''part of asana token'''
     id: str  # e.g. "4673218951",
     name: str  # e.g. "Greg Sanchez",
     email: str  # e.g. "gsanchez@example.com"
 
 
-class AsanaToken:
+class AsanaToken(TypedDict):
     '''asana token as it is returned from asana endpoint'''
     access_token: str  # e.g. "f6ds7fdsa69ags7ag9sd5a",
     expires_in: int  # e.g. 3600,
@@ -95,14 +95,16 @@ async def oauth_callback(
         return RedirectResponse("/")
     asana_client: AsanaClient = create_asana_client(oauth_env)
     access_token: AsanaToken = asana_client.session.fetch_token(code=code)
-    # request.session["asana_user"] = access_token.data
-    return RedirectResponse("/au")
+    asana_user: AsanaTokenData = access_token["data"]
+    request.session["asana_user"] = asana_user
+    return RedirectResponse("/setup")
 
 
-@app.get("/au", response_class=HTMLResponse)
-async def authenticated(request: Request):
-    # asana_user = request.session.get("asana_user")
-    return templates.TemplateResponse("authenticated.html", {"request": request})
+@app.get("/setup", response_class=HTMLResponse)
+async def setup(request: Request):
+    '''site for the authenticated user'''
+    asana_user: AsanaTokenData = request.session.get("asana_user")
+    return templates.TemplateResponse("authenticated.html", {"request": request, "asana_user": asana_user})
 
 
 # HELPER
