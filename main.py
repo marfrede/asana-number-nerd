@@ -38,7 +38,26 @@ def get_oauth_env():
     return OauthEnv()
 
 
+# CLASSES
+
+class AsanaTokenData:
+    '''part of asana token'''
+    id: str  # e.g. "4673218951",
+    name: str  # e.g. "Greg Sanchez",
+    email: str  # e.g. "gsanchez@example.com"
+
+
+class AsanaToken:
+    '''asana token as it is returned from asana endpoint'''
+    access_token: str  # e.g. "f6ds7fdsa69ags7ag9sd5a",
+    expires_in: int  # e.g. 3600,
+    token_type: str  # e.g. "bearer",
+    refresh_token: str  # e.g. "hjkl325hjkl4325hj4kl32fjds",
+    data: AsanaTokenData
+
+
 # ROUTES
+
 
 @app.get("/")
 async def root():
@@ -68,8 +87,15 @@ async def oauth_callback(request: Request, code: Union[str, None] = None, state:
     '''
     if not code or not state or not request.session.get("state", None) == state:
         return RedirectResponse("/")
-    request.session["code"] = code
-    return {"success: ": code}
+    # request.session["code"] = code
+    client = asana.Client.oauth(
+        client_id=oauth_env.client_id,
+        client_secret=oauth_env.client_secret,
+        redirect_uri=oauth_env.number_nerd_url
+    )
+    access_token: AsanaToken = client.session.fetch_token(code=code)
+    return {"access_token": access_token}
+
 
 # HELPER
 
