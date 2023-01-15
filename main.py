@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 from functools import lru_cache
-from typing import TypedDict, Union
+from typing import List, TypedDict, Union
 
 from asana import Client as AsanaClient
 from deta import Deta
@@ -66,6 +66,13 @@ class AsanaToken(TypedDict):
     data: AsanaUser
 
 
+class AsanaWorkspace(TypedDict):
+    '''asana workspace from asana API'''
+    gid: str  # e.g. "12345"
+    resource_type: str  # e.g. "workspace"
+    name: str  # e.g. "My Company Workspace
+
+
 # ROUTES
 
 
@@ -82,8 +89,8 @@ async def home(request: Request, env: Env = Depends(get_env)):
         display the asana number nerd (ann) description
         display href button to auth ann with the users private asana account
     '''
-    asana_client: AsanaClient = create_asana_client(env)
-    url, state = await get_authorize_asana_url(asana_client)
+    asana_client_oauth: AsanaClient = create_asana_client_oauth(env)
+    url, state = await get_authorize_asana_url(asana_client_oauth)
     request.session["state"] = state
     return templates.TemplateResponse("index.jinja2", {"request": request, "authorize_asana_url": url})
 
@@ -104,8 +111,12 @@ async def oauth_callback(
     '''
     if not code or not state or not request.session.get("state", None) == state:
         return RedirectResponse("/")
-    asana_client: AsanaClient = create_asana_client(env)
-    access_token: AsanaToken = asana_client.session.fetch_token(code=code)
+
+    # fetch auth_token for user
+    asana_client_oauth: AsanaClient = create_asana_client_oauth(env)
+    access_token: AsanaToken = asana_client_oauth.session.fetch_token(code=code)
+
+    # store auth_token in db and db key in session
     asana_user_id: str = access_token['data']["id"]
     request.session['asana_user_id'] = asana_user_id
     db.put(access_token, f"user_{asana_user_id}")
@@ -113,12 +124,14 @@ async def oauth_callback(
 
 
 @app.get("/setup", response_class=HTMLResponse)
-async def setup(request: Request):
+async def setup(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     asana_user_id: str = request.session.get("asana_user_id")
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
+    asana_client: AsanaClient = create_asana_client_pat(access_token["access_token"])
     asana_user: AsanaUser = access_token["data"]
-    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": asana_user})
+    workspaces: List[AsanaWorkspace] = get_asana_workspaces(asana_client)
+    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": asana_user, "workspaces": workspaces})
 
 
 # HELPER
@@ -134,10 +147,20 @@ async def get_authorize_asana_url(client: AsanaClient):
     return (url, state)
 
 
-def create_asana_client(env: Env) -> AsanaClient:
-    '''cerate specific http client for asana API'''
+def create_asana_client_oauth(env: Env) -> AsanaClient:
+    '''cerate specific http client for asana API with oauth for login'''
     return AsanaClient.oauth(
         client_id=env.client_id,
         client_secret=env.client_secret,
         redirect_uri=env.number_nerd_callback
     )
+
+
+def create_asana_client_pat(personal_access_token: str) -> AsanaClient:
+    '''cerate specific http client for asana API with pat to login as a specific user'''
+    return AsanaClient.access_token(personal_access_token)
+
+
+def get_asana_workspaces(client: AsanaClient) -> List[AsanaWorkspace]:
+    '''fetch users workspaces'''
+    return client.workspaces.get_workspaces()
