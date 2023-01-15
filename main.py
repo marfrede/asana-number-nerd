@@ -79,7 +79,7 @@ async def home(request: Request, env: Env = Depends(get_env)):
     asana_client: AsanaClient = create_asana_client(env)
     url, state = await get_authorize_asana_url(asana_client)
     request.session["state"] = state
-    return templates.TemplateResponse("index.jinja", {"request": request, "authorize_asana_url": url})
+    return templates.TemplateResponse("index.jinja2", {"request": request, "authorize_asana_url": url})
 
 
 @app.get("/oauth/callback", response_class=RedirectResponse)
@@ -109,7 +109,7 @@ async def oauth_callback(
 async def setup(request: Request):
     '''site for the authenticated user'''
     asana_user: AsanaTokenData = request.session.get("asana_user")
-    return templates.TemplateResponse("setup.jinja", {"request": request, "asana_user": asana_user})
+    return templates.TemplateResponse("setup.jinja2", {"request": request, "asana_user": asana_user})
 
 
 # HELPER
