@@ -22,8 +22,8 @@ templates = Jinja2Templates(directory="templates")
 
 #  SETTINGS
 
-class AsanaOauthEnv(BaseSettings):
-    '''asana oauth2 variables'''
+class OauthEnv(BaseSettings):
+    '''oauth2 variables'''
     client_id: str = "1203721176797529"
 
     class Config:
@@ -32,9 +32,9 @@ class AsanaOauthEnv(BaseSettings):
 
 
 @lru_cache()
-def get_asana_oauth_env():
-    '''get_asana_oauth_env'''
-    return AsanaOauthEnv()
+def get_oauth_env():
+    '''get_oauth_env'''
+    return OauthEnv()
 
 
 # ROUTES
@@ -46,14 +46,14 @@ async def root():
 
 
 @app.get("/home", response_class=HTMLResponse)
-async def home(request: Request, asana_oauth_env: AsanaOauthEnv = Depends(get_asana_oauth_env)):
+async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
     '''
         display the asana number nerd home page with description and option ask
         asana to authorize this app with the users private asana account
     '''
     state = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(40))
     request.session["state"] = state
-    authorize_asana_url = get_authorize_asana_url(asana_oauth_env=asana_oauth_env, state=state)
+    authorize_asana_url = get_authorize_asana_url(oauth_env=oauth_env, state=state)
     return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": authorize_asana_url})
 
 
@@ -75,7 +75,7 @@ async def oauth_callback(request: Request, code: Union[str, None] = None, state:
 # HELPER
 
 
-def get_authorize_asana_url(asana_oauth_env: AsanaOauthEnv, state: str) -> str:
+def get_authorize_asana_url(oauth_env: OauthEnv, state: str) -> str:
     '''generates the href link to begin the oauth grant'''
     asana_oauth_link = "https://app.asana.com/-/oauth_authorize"
     redirect_uri = "https://n4w6bi.deta.dev/oauth/callback"
@@ -85,7 +85,7 @@ def get_authorize_asana_url(asana_oauth_env: AsanaOauthEnv, state: str) -> str:
     scope = "default"
     return (""
             + f"{asana_oauth_link}"
-            + f"?client_id={asana_oauth_env.client_id}"
+            + f"?client_id={oauth_env.client_id}"
             + f"&redirect_uri={redirect_uri}"
             + f"&response_type={response_type}"
             + f"&state={state}"
