@@ -61,15 +61,16 @@ class AsanaToken(TypedDict):
 
 @app.get("/home", response_class=RedirectResponse)
 async def root():
-    '''root'''
+    '''redirect /home to / where the homepage is'''
     return RedirectResponse("/")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
     '''
-        display the asana number nerd home page with description and option ask
-        asana to authorize this app with the users private asana account
+        homepage
+        display the asana number nerd (ann) description
+        display href button to auth ann with the users private asana account
     '''
     asana_client: AsanaClient = create_asana_client(oauth_env)
     url, state = await get_authorize_asana_url(asana_client)
