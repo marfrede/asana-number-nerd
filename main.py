@@ -1,10 +1,9 @@
 '''asana number nerdx'''
 
-import random
-import string
 from functools import lru_cache
 from typing import Union
 
+import asana
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -24,8 +23,9 @@ templates = Jinja2Templates(directory="templates")
 
 class OauthEnv(BaseSettings):
     '''oauth2 variables'''
-    number_nerd_url: str = "https://www.asana-number-nerd.com"
+    number_nerd_url: str = "https://www.asana-number-nerd.com/oauth/callback"
     client_id: str = "1203721176797529"
+    client_secret: str
 
     class Config:
         '''read variables from dotenv file'''
@@ -52,14 +52,13 @@ async def home(request: Request, oauth_env: OauthEnv = Depends(get_oauth_env)):
         display the asana number nerd home page with description and option ask
         asana to authorize this app with the users private asana account
     '''
-    state = ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(40))
+    (url, state) = await get_authorize_asana_url(oauth_env=oauth_env)
     request.session["state"] = state
-    authorize_asana_url = get_authorize_asana_url(oauth_env=oauth_env, state=state)
-    return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": authorize_asana_url})
+    return templates.TemplateResponse("index.html", {"request": request, "authorize_asana_url": url, 'state': state})
 
 
 @app.get("/oauth/callback")
-async def oauth_callback(request: Request, code: Union[str, None] = None, state: Union[str, None] = None):
+async def oauth_callback(request: Request, code: Union[str, None] = None, state: Union[str, None] = None, oauth_env: OauthEnv = Depends(get_oauth_env)):
     '''
         callback ednpoint for asanas oauth step 1
         after the user grants permission (allows) (or denies) the asana api will
@@ -72,25 +71,20 @@ async def oauth_callback(request: Request, code: Union[str, None] = None, state:
     request.session["code"] = code
     return {"success: ": code}
 
-
 # HELPER
 
 
-def get_authorize_asana_url(oauth_env: OauthEnv, state: str) -> str:
-    '''generates the href link to begin the oauth grant'''
-    asana_oauth_link = "https://app.asana.com/-/oauth_authorize"
-    redirect_uri = f"{oauth_env.number_nerd_url}/oauth/callback"
-    response_type = "code"
-    code_challenge_method = "S256"
-    code_challenge = "671608a33392cee13585063953a86d396dffd15222d83ef958f43a2804ac7fb2"
-    scope = "default"
-    return (""
-            + f"{asana_oauth_link}"
-            + f"?client_id={oauth_env.client_id}"
-            + f"&redirect_uri={redirect_uri}"
-            + f"&response_type={response_type}"
-            + f"&state={state}"
-            + f"&code_challenge_method={code_challenge_method}"
-            + f"&code_challenge={code_challenge}"
-            + f"&scope={scope}"
-            )
+async def get_authorize_asana_url(oauth_env: OauthEnv):
+    '''
+        generates the asana url to begin the oauth grant
+        cerates a random state string
+        attaches state to url
+    '''
+    client = asana.Client.oauth(
+        client_id=oauth_env.client_id,
+        client_secret=oauth_env.client_secret,
+        redirect_uri=oauth_env.number_nerd_url
+
+    )
+    (url, state) = client.session.authorization_url()
+    return (url, state)

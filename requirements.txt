@@ -4,3 +4,4 @@ pydantic==1.10.4
 python-dotenv==0.21.0
 starlette==0.22.0
 itsdangerous==2.1.2
+asana==3.0.0
