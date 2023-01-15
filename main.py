@@ -126,5 +126,4 @@ def create_asana_client(oauth_env: OauthEnv) -> AsanaClient:
         client_id=oauth_env.client_id,
         client_secret=oauth_env.client_secret,
         redirect_uri=oauth_env.number_nerd_callback
-
     )
