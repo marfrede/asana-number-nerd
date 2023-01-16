@@ -1,8 +1,9 @@
 '''asana number nerdx'''
 
 from functools import lru_cache
-from typing import Generator, Literal, TypedDict, Union
+from typing import List, Literal, TypedDict, Union
 
+import requests
 from asana import Client as AsanaClient
 from deta import Deta
 from fastapi import Depends, FastAPI, Request
@@ -58,11 +59,19 @@ class AsanaUser(TypedDict):
 
 
 class AsanaToken(TypedDict):
-    '''asana token as it is returned from asana endpoint'''
+    '''asana token as it is returned from asana fetch_token endpoint'''
     access_token: str  # e.g. "f6ds7fdsa69ags7ag9sd5a",
     expires_in: int  # e.g. 3600,
     token_type: str  # e.g. "bearer",
     refresh_token: str  # e.g. "hjkl325hjkl4325hj4kl32fjds",
+    data: AsanaUser
+
+
+class AsanaTokenNoRefresh(TypedDict):
+    '''asana token as it is returned from asana refresh_token endpoint'''
+    access_token: str  # e.g. "f6ds7fdsa69ags7ag9sd5a",
+    expires_in: int  # e.g. 3600,
+    token_type: str  # e.g. "bearer",
     data: AsanaUser
 
 
@@ -123,18 +132,16 @@ async def oauth_callback(
     return RedirectResponse("/setup")
 
 
-@app.get("/setup", response_class=HTMLResponse)
-async def setup(request: Request):
+@app.get("/setup")
+async def setup(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     asana_user_id: str = request.session.get("asana_user_id")
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
-    asana_client: AsanaClient = create_asana_client_pat(access_token["access_token"])
+    pat = refresh_asana_client_pat(access_token=access_token, env=env)
     asana_user: AsanaUser = access_token["data"]
-    workspaces = []
-    for workspace in get_asana_workspaces(asana_client):
-        projects = list(get_asana_projects(client_pat=asana_client, workspace=workspace))
-        workspace["projects"] = projects
-        workspaces.append(workspace)
+    workspaces = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
+    for workspace in workspaces:
+        workspace["projects"] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
     return templates.TemplateResponse("setup.jinja2", {
         "request": request,
         "asana_user": asana_user,
@@ -164,16 +171,35 @@ def create_asana_client_oauth(env: Env) -> AsanaClient:
     )
 
 
-def create_asana_client_pat(personal_access_token: str) -> AsanaClient:
-    '''cerate specific http client for asana API with pat to login as a specific user'''
-    return AsanaClient.access_token(personal_access_token)
+def refresh_asana_client_pat(access_token: AsanaToken, env: Env) -> str:
+    '''
+        refresh asana access_token (pat) with refresh_token
+        save new access_token object in db
+        return only the pat
+    '''
+    response = requests.post(url="https://app.asana.com/-/oauth_token", data={
+        'grant_type': 'refresh_token',
+        'client_id': env.client_id,
+        'client_secret': env.client_secret,
+        'redirect_uri': env.number_nerd_callback,
+        'refresh_token': access_token["refresh_token"]
+    }, timeout=5)
+    new_access_token: AsanaTokenNoRefresh = response.json()
+    pat: str = new_access_token["access_token"]
+    access_token["access_token"] = pat
+    db.put(access_token, f"user_{access_token['data']['id']}")
+    return pat
 
 
-def get_asana_workspaces(client_pat: AsanaClient) -> Generator[AsanaObject, None, None]:
-    '''fetch users workspaces'''
-    return client_pat.workspaces.get_workspaces()
-
-
-def get_asana_projects(client_pat: AsanaClient, workspace: AsanaObject) -> Generator[AsanaObject, None, None]:
-    '''fetch users workspaces'''
-    return client_pat.projects.get_projects_for_workspace(workspace["gid"])
+def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
+    '''a general asana api get request to a given url'''
+    response = requests.get(
+        url=url,
+        headers={
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {pat}'
+        }, timeout=5
+    )
+    if (response.status_code >= 200 and response.status_code < 400):
+        return response.json()["data"]
+    return None
