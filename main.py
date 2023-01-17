@@ -137,7 +137,11 @@ async def oauth_callback(
 @app.get("/choose-projects", response_class=HTMLResponse)
 async def choose_projects(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
+    # 1. auth or redirect
     asana_user, pat = get_fresh_logged_in_asana_user(request=request, env=env)
+    if (not asana_user or not pat):
+        return RedirectResponse("/")
+    # 2. respond
     workspaces: List[AsanaObject] = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
     for workspace in workspaces:
         projects: List[AsanaObject] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
@@ -161,8 +165,12 @@ async def read_projects(request: Request):
 @app.get("/choose-numbering")
 async def choose_numbering(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
-    asana_user, pat = get_fresh_logged_in_asana_user(request=request, env=env)
+    # 1. auth and validate or redirect
+    asana_user, _ = get_fresh_logged_in_asana_user(request=request, env=env)
     projects = await read_projects_session_db(request=request)
+    if not asana_user or not projects:
+        return RedirectResponse("/choose-projects")
+    # 2. respond
     return templates.TemplateResponse("choose-numbering.jinja2", {
         "request": request,
         "asana_user": asana_user,
@@ -191,26 +199,6 @@ def create_asana_client_oauth(env: Env) -> AsanaClient:
     )
 
 
-def refresh_asana_client_pat(access_token: AsanaToken, env: Env) -> str:
-    '''
-        refresh asana access_token (pat) with refresh_token
-        save new access_token object in db
-        return only the pat
-    '''
-    response = requests.post(url="https://app.asana.com/-/oauth_token", data={
-        'grant_type': 'refresh_token',
-        'client_id': env.client_id,
-        'client_secret': env.client_secret,
-        'redirect_uri': env.number_nerd_callback,
-        'refresh_token': access_token["refresh_token"]
-    }, timeout=5)
-    new_access_token: AsanaTokenNoRefresh = response.json()
-    pat: str = new_access_token["access_token"]
-    access_token["access_token"] = pat
-    db.put(access_token, f"user_{access_token['data']['id']}")
-    return pat
-
-
 def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     '''a general asana api get request to a given url'''
     response = requests.get(
@@ -225,12 +213,39 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     return None
 
 
-def get_fresh_logged_in_asana_user(request: Request, env: Env) -> Tuple[AsanaUser, str]:
+def get_fresh_logged_in_asana_user(request: Request, env: Env) -> Tuple[Union[AsanaUser, None], Union[str, None]]:
     '''read user id from session and read user from detabase'''
-    asana_user_id: str = request.session.get("asana_user_id")
-    access_token: AsanaToken = db.get(f"user_{asana_user_id}")
-    pat: str = refresh_asana_client_pat(access_token=access_token, env=env)
+    asana_user_id: Union[str, None] = request.session.get("asana_user_id", None)
+    if not asana_user_id:
+        return (None, None)
+    access_token: Union[AsanaToken, None] = db.get(f"user_{asana_user_id}")
+    if not access_token:
+        return (None, None)
+    pat: Union[str, None] = refresh_asana_client_pat(access_token=access_token, env=env)
     return (access_token["data"], pat)
+
+
+def refresh_asana_client_pat(access_token: AsanaToken, env: Env) -> Union[str, None]:
+    '''
+        refresh asana access_token (pat) with refresh_token
+        save new access_token object in db
+        return only the pat
+        return None when refresh_token invalid (should only be the case when app access was denied)
+    '''
+    response = requests.post(url="https://app.asana.com/-/oauth_token", data={
+        'grant_type': 'refresh_token',
+        'client_id': env.client_id,
+        'client_secret': env.client_secret,
+        'redirect_uri': env.number_nerd_callback,
+        'refresh_token': access_token["refresh_token"]
+    }, timeout=5)
+    if (response.status_code >= 200 and response.status_code < 400):
+        new_access_token: AsanaTokenNoRefresh = response.json()
+        pat: str = new_access_token["access_token"]
+        access_token["access_token"] = pat
+        db.put(access_token, f"user_{access_token['data']['id']}")
+        return pat
+    return None
 
 
 async def read_projects_from_form(request: Request) -> Coroutine[List[AsanaObject], None, None]:
@@ -241,10 +256,14 @@ async def read_projects_from_form(request: Request) -> Coroutine[List[AsanaObjec
     return projects
 
 
-async def read_projects_session_db(request: Request) -> Coroutine[List[AsanaObject], None, None]:
+async def read_projects_session_db(request: Request) -> Coroutine[Union[List[AsanaObject], None], None, None]:
     '''read project ids selected inside form after storing in db'''
-    key = request.session.get("projects_choosen")
-    projects_choosen: List[AsanaObject] = db.get(key)["value"]
+    key: Union[str, None] = request.session.get("projects_choosen")
+    if not key:
+        return None
+    projects_choosen: Union[List[AsanaObject], None] = db.get(key)["value"]
+    if not projects_choosen:
+        return None
     db.delete(key)
     request.session.pop("projects_choosen")
     return projects_choosen
