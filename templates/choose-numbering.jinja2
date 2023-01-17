@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Asana Number Nerd</title>
+	<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+	<link rel="stylesheet" href="/static/css/styles.css">
+</head>
+
+<body>
+	<p class="login-info">Logged in with Asana as {{asana_user.email}}</p>
+	<div class="container">
+
+		<a class="header" href="/">
+			<img src="/static/assets/appicon.png" alt="" srcset="" width="200px">
+			<h1><span>Asana<br></span><span>Number<br></span><span>Nerd</span></h1>
+		</a>
+
+		<div class="content">
+			{# <h1>Select numbering style</h1> #}
+
+			<p>A number will be assigned everytime a new task is created inside any of these projects:</p>
+			<ul>
+				{% for project in projects %}
+				<li>{{project["name"]}}</li>
+				{% endfor %}
+			</ul>
+
+			<div class="content" style="text-align: center;">
+				<button>Finish...</button>
+			</div>
+
+		</div>
+	</div>
+	<script src="/static/js/form.js"></script>
+</body>
+
+</html>
