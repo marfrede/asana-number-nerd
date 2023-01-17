@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 from functools import lru_cache
-from typing import List, Literal, TypedDict, Union
+from typing import Coroutine, List, Literal, TypedDict, Union
 
 import requests
 from asana import Client as AsanaClient
@@ -132,7 +132,7 @@ async def oauth_callback(
     return RedirectResponse("/setup")
 
 
-@app.get("/setup")
+@app.get("/setup", response_class=HTMLResponse)
 async def setup(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     asana_user_id: str = request.session.get("asana_user_id")
@@ -148,6 +148,12 @@ async def setup(request: Request, env: Env = Depends(get_env)):
         "workspaces": workspaces,
     })
 
+
+@app.post("/projects")
+async def projects(request: Request):
+    '''site for the authenticated user'''
+    project_ids: List[str] = await read_project_ids(request=request)
+    return project_ids
 
 # HELPER
 
@@ -203,3 +209,9 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     if (response.status_code >= 200 and response.status_code < 400):
         return response.json()["data"]
     return None
+
+
+async def read_project_ids(request: Request) -> Coroutine[List[str], None, None]:
+    '''read project ids selected inside form'''
+    form = await request.form()
+    return list(form.keys())

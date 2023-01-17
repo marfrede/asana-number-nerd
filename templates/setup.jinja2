@@ -23,30 +23,35 @@
 			<small>Logged in as {{asana_user.email}}</small>
 			<p>Select the projects in which the task numbering is to be activated.</p>
 
-			<div class="row">
-				<div class="col">
-					<div class="tabs">
-						{% for ws in workspaces %}
-						<div style="margin-bottom: 20px;">
-							<div class="tab">
-								<input class="accordion-input" type="checkbox" id="{{ws['gid']}}">
-								<label class="tab-label" for="{{ws['gid']}}">{{ws['name']}}</label>
-								<div class="tab-content">
-									{% for p in ws["projects"] %}
-									<div class="input-group">
-										<input class="project-input" id="{{p['gid']}}" name="{{p['gid']}}" type="checkbox" />
-										<label class="project-label" for="{{p['gid']}}">{{p['name']}}</label>
+			<form action="projects" method="post">
+				<div class="row">
+					<div class="col">
+						<div class="tabs">
+							{% for ws in workspaces %}
+							<div style="margin-bottom: 20px;">
+								<div class="tab">
+									<input class="accordion-input" type="checkbox" id="{{ws['gid']}}">
+									<label class="tab-label" for="{{ws['gid']}}">{{ws['name']}}</label>
+									<div class="tab-content">
+										{% for p in ws["projects"] %}
+										<div class="input-group">
+											<input class="project-input" id="{{p['gid']}}" name="{{p['gid']}}" type="checkbox" />
+											<label class="project-label" for="{{p['gid']}}">{{p['name']}}</label>
+										</div>
+										{% endfor %}
 									</div>
-									{% endfor %}
 								</div>
 							</div>
+							{% endfor %}
 						</div>
-						{% endfor %}
 					</div>
 				</div>
-			</div>
-
+				<div class="content" style="text-align: center;">
+					<button type="submit">Next</button>
+				</div>
+			</form>
 		</div>
+
 	</div>
 </body>
 
