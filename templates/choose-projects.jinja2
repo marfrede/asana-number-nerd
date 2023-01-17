@@ -10,18 +10,17 @@
 </head>
 
 <body>
+	<p class="login-info">Logged in with Asana as {{asana_user.email}}</p>
 	<div class="container">
 
-		<div class="header">
+		<a class="header" href="/">
 			<img src="/static/assets/appicon.png" alt="" srcset="" width="200px">
 			<h1><span>Asana<br></span><span>Number<br></span><span>Nerd</span></h1>
-		</div>
+		</a>
 
 		<div class="content">
-			<p><strong>Asana Number Nerd</strong> has just one simple task: to <span class="highlight">number your Asana
-					tasks</span>.</p>
-			<small>Logged in as {{asana_user.email}}</small>
-			<p>Select the projects in which the task numbering is to be activated.</p>
+			<h1>Select projects</h1>
+			<p>Pick the Asana projects where you want Asana Number Nerd to add numbers to each new task</p>
 
 			<form action="projects/read" method="post">
 				<div class="row">
