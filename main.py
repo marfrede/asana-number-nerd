@@ -1,5 +1,6 @@
 '''asana number nerdx'''
 
+import json
 from functools import lru_cache
 from typing import Coroutine, List, Literal, TypedDict, Union
 
@@ -139,9 +140,12 @@ async def setup(request: Request, env: Env = Depends(get_env)):
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
     pat = refresh_asana_client_pat(access_token=access_token, env=env)
     asana_user: AsanaUser = access_token["data"]
-    workspaces = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
+    workspaces: List[AsanaObject] = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
     for workspace in workspaces:
-        workspace["projects"] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
+        projects: List[AsanaObject] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
+        projects_json: List[str] = list(map(json.dumps, projects))
+        workspace["projects"] = projects
+        workspace["projects_json"] = projects_json
     return templates.TemplateResponse("setup.jinja2", {
         "request": request,
         "asana_user": asana_user,
@@ -149,11 +153,11 @@ async def setup(request: Request, env: Env = Depends(get_env)):
     })
 
 
-@app.post("/projects")
-async def projects(request: Request):
+@app.post("/projects/read")
+async def read_projects(request: Request):
     '''site for the authenticated user'''
-    project_ids: List[str] = await read_project_ids(request=request)
-    return project_ids
+    projects: List[AsanaObject] = await read_projects_json(request=request)
+    return projects
 
 # HELPER
 
@@ -211,7 +215,7 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     return None
 
 
-async def read_project_ids(request: Request) -> Coroutine[List[str], None, None]:
+async def read_projects_json(request: Request) -> Coroutine[List[AsanaObject], None, None]:
     '''read project ids selected inside form'''
     form = await request.form()
-    return list(form.keys())
+    return list(map(json.loads, list(form.keys())))

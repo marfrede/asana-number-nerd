@@ -23,7 +23,7 @@
 			<small>Logged in as {{asana_user.email}}</small>
 			<p>Select the projects in which the task numbering is to be activated.</p>
 
-			<form action="projects" method="post">
+			<form action="projects/read" method="post">
 				<div class="row">
 					<div class="col">
 						<div class="tabs">
@@ -35,8 +35,9 @@
 									<div class="tab-content">
 										{% for p in ws["projects"] %}
 										<div class="input-group">
-											<input class="project-input" id="{{p['gid']}}" name="{{p['gid']}}" type="checkbox" />
-											<label class="project-label" for="{{p['gid']}}">{{p['name']}}</label>
+											<input class="project-input" id="{{ws['projects_json'][loop.index0]}}"
+												name="{{ws['projects_json'][loop.index0]}}" type="checkbox" />
+											<label class="project-label" for="{{ws['projects_json'][loop.index0]}}">{{p['name']}}</label>
 										</div>
 										{% endfor %}
 									</div>
