@@ -130,11 +130,11 @@ async def oauth_callback(
     asana_user_id: str = access_token['data']["id"]
     request.session['asana_user_id'] = asana_user_id
     db.put(access_token, f"user_{asana_user_id}")
-    return RedirectResponse("/setup")
+    return RedirectResponse("/choose-projects")
 
 
-@app.get("/setup", response_class=HTMLResponse)
-async def setup(request: Request, env: Env = Depends(get_env)):
+@app.get("/choose-projects", response_class=HTMLResponse)
+async def choose_projects(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     asana_user_id: str = request.session.get("asana_user_id")
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
@@ -144,7 +144,7 @@ async def setup(request: Request, env: Env = Depends(get_env)):
     for workspace in workspaces:
         projects: List[AsanaObject] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
         workspace["projects"] = projects
-    return templates.TemplateResponse("setup.jinja2", {
+    return templates.TemplateResponse("choose-projects.jinja2", {
         "request": request,
         "asana_user": asana_user,
         "workspaces": workspaces,
