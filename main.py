@@ -1,7 +1,8 @@
 '''asana number nerdx'''
 
+import ast
 from functools import lru_cache
-from typing import List, Literal, TypedDict, Union
+from typing import Coroutine, List, Literal, TypedDict, Union
 
 import requests
 from asana import Client as AsanaClient
@@ -129,25 +130,32 @@ async def oauth_callback(
     asana_user_id: str = access_token['data']["id"]
     request.session['asana_user_id'] = asana_user_id
     db.put(access_token, f"user_{asana_user_id}")
-    return RedirectResponse("/setup")
+    return RedirectResponse("/choose-projects")
 
 
-@app.get("/setup")
-async def setup(request: Request, env: Env = Depends(get_env)):
+@app.get("/choose-projects", response_class=HTMLResponse)
+async def choose_projects(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     asana_user_id: str = request.session.get("asana_user_id")
     access_token: AsanaToken = db.get(f"user_{asana_user_id}")
     pat = refresh_asana_client_pat(access_token=access_token, env=env)
     asana_user: AsanaUser = access_token["data"]
-    workspaces = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
+    workspaces: List[AsanaObject] = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
     for workspace in workspaces:
-        workspace["projects"] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
-    return templates.TemplateResponse("setup.jinja2", {
+        projects: List[AsanaObject] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
+        workspace["projects"] = projects
+    return templates.TemplateResponse("choose-projects.jinja2", {
         "request": request,
         "asana_user": asana_user,
         "workspaces": workspaces,
     })
 
+
+@app.post("/projects/read")
+async def read_projects(request: Request):
+    '''site for the authenticated user'''
+    projects: List[AsanaObject] = await read_projects_json(request=request)
+    return projects
 
 # HELPER
 
@@ -203,3 +211,11 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     if (response.status_code >= 200 and response.status_code < 400):
         return response.json()["data"]
     return None
+
+
+async def read_projects_json(request: Request) -> Coroutine[List[AsanaObject], None, None]:
+    '''read project ids selected inside form'''
+    form = await request.form()
+    project_strs: List[str] = list(form.keys())
+    projects: List[AsanaObject] = list(map(ast.literal_eval, project_strs))
+    return projects
