@@ -22,7 +22,7 @@
 			<h1>Select projects</h1>
 			<p>Pick the Asana projects where you want Asana Number Nerd to add numbers to each new task</p>
 
-			<form action="projects/read" method="post">
+			<form action="projects/read" method="post" name="projects_form" onsubmit="return validateForm()">
 				<div class="row">
 					<div class="col">
 						<div class="tabs">
@@ -50,8 +50,8 @@
 				</div>
 			</form>
 		</div>
-
 	</div>
+	<script src="/static/js/form.js"></script>
 </body>
 
 </html>
