@@ -216,5 +216,6 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
 async def read_projects_json(request: Request) -> Coroutine[List[AsanaObject], None, None]:
     '''read project ids selected inside form'''
     form = await request.form()
-    projects: List[str] = list(form.keys())
-    return list(map(ast.literal_eval, projects))
+    project_strs: List[str] = list(form.keys())
+    projects: List[AsanaObject] = list(map(ast.literal_eval, project_strs))
+    return projects
