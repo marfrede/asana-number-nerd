@@ -35,9 +35,8 @@
 									<div class="tab-content">
 										{% for p in ws["projects"] %}
 										<div class="input-group">
-											<input class="project-input" id="{{ws['projects_json'][loop.index0]}}"
-												name="{{ws['projects_json'][loop.index0]}}" type="checkbox" />
-											<label class="project-label" for="{{ws['projects_json'][loop.index0]}}">{{p['name']}}</label>
+											<input class="project-input" id="{{p}}" name="{{p}}" type="checkbox" />
+											<label class="project-label" for="{{p}}">{{p['name']}}</label>
 										</div>
 										{% endfor %}
 									</div>

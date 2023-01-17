@@ -1,6 +1,6 @@
 '''asana number nerdx'''
 
-import json
+import ast
 from functools import lru_cache
 from typing import Coroutine, List, Literal, TypedDict, Union
 
@@ -143,9 +143,7 @@ async def setup(request: Request, env: Env = Depends(get_env)):
     workspaces: List[AsanaObject] = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
     for workspace in workspaces:
         projects: List[AsanaObject] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
-        projects_json: List[str] = list(map(json.dumps, projects))
         workspace["projects"] = projects
-        workspace["projects_json"] = projects_json
     return templates.TemplateResponse("setup.jinja2", {
         "request": request,
         "asana_user": asana_user,
@@ -218,4 +216,5 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
 async def read_projects_json(request: Request) -> Coroutine[List[AsanaObject], None, None]:
     '''read project ids selected inside form'''
     form = await request.form()
-    return list(map(json.loads, list(form.keys())))
+    projects: List[str] = list(form.keys())
+    return list(map(ast.literal_eval, projects))
