@@ -12,6 +12,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseSettings
+from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
 # init fastapi
@@ -151,11 +152,20 @@ async def choose_projects(request: Request, env: Env = Depends(get_env)):
     })
 
 
-@app.post("/projects/read")
+@app.post("/projects/read", response_class=RedirectResponse)
 async def read_projects(request: Request):
+    '''read chosen projects from form and save to detabase'''
+    projects: List[AsanaObject] = await read_projects_from_form(request=request)
+    deta_obj = db.put(projects)
+    request.session["projects_choosen"] = deta_obj["key"]
+    return RedirectResponse("/choose-numbering", status_code=Status.HTTP_302_FOUND)
+
+
+@app.get("/choose-numbering")
+async def choose_numbering(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
-    projects: List[AsanaObject] = await read_projects_json(request=request)
-    return projects
+    projects_choosen = await read_projects_session_db(request=request)
+    return projects_choosen
 
 # HELPER
 
@@ -213,9 +223,18 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     return None
 
 
-async def read_projects_json(request: Request) -> Coroutine[List[AsanaObject], None, None]:
+async def read_projects_from_form(request: Request) -> Coroutine[List[AsanaObject], None, None]:
     '''read project ids selected inside form'''
     form = await request.form()
     project_strs: List[str] = list(form.keys())
     projects: List[AsanaObject] = list(map(ast.literal_eval, project_strs))
     return projects
+
+
+async def read_projects_session_db(request: Request) -> Coroutine[List[AsanaObject], None, None]:
+    '''read project ids selected inside form after storing in db'''
+    key = request.session.get("projects_choosen")
+    projects_choosen: List[AsanaObject] = db.get(key)["value"]
+    db.delete(key)
+    request.session.pop("projects_choosen")
+    return projects_choosen
