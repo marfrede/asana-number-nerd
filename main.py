@@ -13,6 +13,9 @@ from fastapi.templating import Jinja2Templates
 from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
+from classes.asana.object import AsanaObject
+from classes.asana.token import AsanaToken, AsanaTokenNoRefresh
+from classes.asana.user import AsanaUser
 from classes.local_env import Env, get_env
 
 # init fastapi
@@ -26,42 +29,6 @@ templates = Jinja2Templates(directory="templates")
 # init deta databse
 deta = Deta()
 db = deta.Base("ann_db")  # This how to connect to or create a database.
-
-# CLASSES
-
-
-class AsanaUser(TypedDict):
-    '''part of asana token'''
-    id: str  # e.g. "4673218951",
-    name: str  # e.g. "Greg Sanchez",
-    email: str  # e.g. "gsanchez@example.com"
-
-
-class AsanaToken(TypedDict):
-    '''asana token as it is returned from asana fetch_token endpoint'''
-    access_token: str  # e.g. "f6ds7fdsa69ags7ag9sd5a",
-    expires_in: int  # e.g. 3600,
-    token_type: str  # e.g. "bearer",
-    refresh_token: str  # e.g. "hjkl325hjkl4325hj4kl32fjds",
-    data: AsanaUser
-
-
-class AsanaTokenNoRefresh(TypedDict):
-    '''asana token as it is returned from asana refresh_token endpoint'''
-    access_token: str  # e.g. "f6ds7fdsa69ags7ag9sd5a",
-    expires_in: int  # e.g. 3600,
-    token_type: str  # e.g. "bearer",
-    data: AsanaUser
-
-
-class AsanaObject(TypedDict):
-    '''asana workspace from asana API'''
-    gid: str  # e.g. "12345"
-    resource_type: Literal["workspace", "project"]
-    name: str  # e.g. "My Company Workspace
-
-
-# ROUTES
 
 
 @ app.get("/home", response_class=RedirectResponse)
