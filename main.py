@@ -184,7 +184,7 @@ async def read_projects(request: Request):
 async def create_weebhook(request: Request, env: Env = Depends(get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
-    asana_user, pat = get_fresh_logged_in_asana_user(request=request, env=env)
+    _, pat = get_fresh_logged_in_asana_user(request=request, env=env)
     projects: Union[List[AsanaObject], None] = await read_projects_session_db(request=request, delete_after_read=True)
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
