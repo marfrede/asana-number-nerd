@@ -18,6 +18,8 @@ from classes.asana import Token as AsanaToken
 from classes.local_env import Env, get_env
 from functions import asana
 
+from mymodules.asana.functions.http import get_headers, http_get, http_post
+
 # init fastapi
 app = FastAPI()
 app.add_middleware(SessionMiddleware, secret_key="KpGtHMS3XgH5b7z9us!@e79GlY$b")
@@ -86,9 +88,9 @@ async def choose_projects(request: Request, env: Env = Depends(get_env)):
     if (not asana_user or not pat):
         return RedirectResponse("/")
     # 2. respond
-    workspaces: List[AsanaObject] = asana.http_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
+    workspaces: List[AsanaObject] = http_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
     for workspace in workspaces:
-        projects: List[AsanaObject] = asana.http_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
+        projects: List[AsanaObject] = http_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
         workspace["projects"] = projects
     return templates.TemplateResponse("choose-projects.jinja2", {
         "request": request,
@@ -131,7 +133,7 @@ async def create_weebhook(request: Request, env: Env = Depends(get_env)):
     projects: Union[List[AsanaObject], None] = await read_projects_session_db(request=request, delete_after_read=True)
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
-    response = asana.http_post(
+    response = http_post(
         url="https://app.asana.com/api/1.0/webhooks", pat=pat,
         data=asana.get_webhook(project_gid=projects[0]["gid"], callback_url=env.number_nerd_webhook_callback),
     )
@@ -156,12 +158,12 @@ async def receive_weebhook(request: Request, response: Response):
     task_created_name = requests.get(
         timeout=20,
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
-        headers=asana.get_headers(pat=pat, incl_content_type=False)
+        headers=get_headers(pat=pat, incl_content_type=False)
     ).json()["data"]["name"]
     requests.put(
         timeout=20,
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
-        headers=asana.get_headers(pat=pat, incl_content_type=True),
+        headers=get_headers(pat=pat, incl_content_type=True),
         json={"data": {"name": f"{'1'} {task_created_name}"}}
     )
 
