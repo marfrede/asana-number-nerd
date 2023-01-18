@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 import ast
-from typing import Coroutine, List, Tuple, Union
+from typing import Coroutine, List, Union
 
 import requests
 from asana import Client as AsanaClient
@@ -13,10 +13,9 @@ from fastapi.templating import Jinja2Templates
 from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
-from classes.asana.object import AsanaObject
-from classes.asana.token import AsanaToken, AsanaTokenNoRefresh
-from classes.asana.user import AsanaUser
+from classes.asana import AsanaObject, AsanaToken
 from classes.local_env import Env, get_env
+from functions import asana
 
 # init fastapi
 app = FastAPI()
@@ -44,8 +43,8 @@ async def home(request: Request, env: Env = Depends(get_env)):
         display the asana number nerd (ann) description
         display href button to auth ann with the users private asana account
     '''
-    asana_client_oauth: AsanaClient = create_asana_client_oauth(env)
-    url, state = await get_authorize_asana_url(asana_client_oauth)
+    asana_client_oauth: AsanaClient = asana.oauth_client(env)
+    url, state = await asana.get_authorize_asana_url(asana_client_oauth)
     request.session["state"] = state
     return templates.TemplateResponse("index.jinja2", {"request": request, "authorize_asana_url": url})
 
@@ -68,7 +67,7 @@ async def oauth_callback(
         return RedirectResponse("/")
 
     # fetch auth_token for user
-    asana_client_oauth: AsanaClient = create_asana_client_oauth(env)
+    asana_client_oauth: AsanaClient = asana.oauth_client(env)
     access_token: AsanaToken = asana_client_oauth.session.fetch_token(code=code)
 
     # store auth_token in db and db key in session
@@ -82,13 +81,13 @@ async def oauth_callback(
 async def choose_projects(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     # 1. auth or redirect
-    asana_user, pat = get_fresh_logged_in_asana_user(request=request, env=env)
+    asana_user, pat = asana.refresh_pat(request=request, env=env)
     if (not asana_user or not pat):
         return RedirectResponse("/")
     # 2. respond
-    workspaces: List[AsanaObject] = asana_api_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
+    workspaces: List[AsanaObject] = asana.get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
     for workspace in workspaces:
-        projects: List[AsanaObject] = asana_api_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
+        projects: List[AsanaObject] = asana.get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
         workspace["projects"] = projects
     return templates.TemplateResponse("choose-projects.jinja2", {
         "request": request,
@@ -127,14 +126,14 @@ async def read_projects(request: Request):
 async def create_weebhook(request: Request, env: Env = Depends(get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
-    _, pat = get_fresh_logged_in_asana_user(request=request, env=env)
+    _, pat = asana.refresh_pat(request=request, env=env)
     projects: Union[List[AsanaObject], None] = await read_projects_session_db(request=request, delete_after_read=True)
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
     response = requests.post(
         url="https://app.asana.com/api/1.0/webhooks",
-        headers=get_asana_headers(pat=pat, incl_content_type=True),
-        data=get_on_task_created_webhook(project_gid=projects[0]["gid"], callback_url=env.number_nerd_webhook_callback),
+        headers=asana.get_asana_headers(pat=pat, incl_content_type=True),
+        data=asana.get_on_task_created_webhook(project_gid=projects[0]["gid"], callback_url=env.number_nerd_webhook_callback),
         timeout=20
     )
     if (response.status_code >= 200 and response.status_code < 400):
@@ -158,82 +157,17 @@ async def receive_weebhook(request: Request, response: Response):
     task_created_name = requests.get(
         timeout=20,
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
-        headers=get_asana_headers(pat=pat, incl_content_type=False)
+        headers=asana.get_asana_headers(pat=pat, incl_content_type=False)
     ).json()["data"]["name"]
     requests.put(
         timeout=20,
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
-        headers=get_asana_headers(pat=pat, incl_content_type=True),
+        headers=asana.get_asana_headers(pat=pat, incl_content_type=True),
         json={"data": {"name": f"{'1'} {task_created_name}"}}
     )
 
 
 # HELPER
-
-async def get_authorize_asana_url(client_oauth: AsanaClient):
-    '''
-        generates the asana url to begin the oauth grant
-        cerates a random state string
-        attaches state to url
-    '''
-    (url, state) = client_oauth.session.authorization_url()
-    return (url, state)
-
-
-def create_asana_client_oauth(env: Env) -> AsanaClient:
-    '''cerate specific http client for asana API with oauth for login'''
-    return AsanaClient.oauth(
-        client_id=env.client_id,
-        client_secret=env.client_secret,
-        redirect_uri=env.number_nerd_oauth_callback
-    )
-
-
-def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
-    '''a general asana api get request to a given url'''
-    response = requests.get(
-        url=url,
-        headers=get_asana_headers(pat=pat, incl_content_type=False),
-        timeout=5
-    )
-    if (response.status_code >= 200 and response.status_code < 400):
-        return response.json()["data"]
-    return None
-
-
-def get_fresh_logged_in_asana_user(request: Request, env: Env) -> Tuple[Union[AsanaUser, None], Union[str, None]]:
-    '''read user id from session and read user from detabase'''
-    asana_user_id: Union[str, None] = request.session.get("asana_user_id", None)
-    if not asana_user_id:
-        return (None, None)
-    access_token: Union[AsanaToken, None] = db.get(f"user_{asana_user_id}")
-    if not access_token:
-        return (None, None)
-    pat: Union[str, None] = refresh_asana_client_pat(access_token=access_token, env=env)
-    return (access_token["data"], pat)
-
-
-def refresh_asana_client_pat(access_token: AsanaToken, env: Env) -> Union[str, None]:
-    '''
-        refresh asana access_token (pat) with refresh_token
-        save new access_token object in db
-        return only the pat
-        return None when refresh_token invalid (should only be the case when app access was denied)
-    '''
-    response = requests.post(url="https://app.asana.com/-/oauth_token", data={
-        'grant_type': 'refresh_token',
-        'client_id': env.client_id,
-        'client_secret': env.client_secret,
-        'redirect_uri': env.number_nerd_oauth_callback,
-        'refresh_token': access_token["refresh_token"]
-    }, timeout=5)
-    if (response.status_code >= 200 and response.status_code < 400):
-        new_access_token: AsanaTokenNoRefresh = response.json()
-        pat: str = new_access_token["access_token"]
-        access_token["access_token"] = pat
-        db.put(access_token, f"user_{access_token['data']['id']}")
-        return pat
-    return None
 
 
 async def read_projects_from_form(request: Request) -> Coroutine[List[AsanaObject], None, None]:
@@ -259,27 +193,3 @@ async def read_projects_session_db(
         db.delete(key)
         request.session.pop("projects_choosen")
     return projects_choosen
-
-
-def get_on_task_created_webhook(project_gid: str, callback_url: str) -> dict:
-    '''get the requets body for a new POST /webhooks listening to a task added to a given project'''
-    return {
-        "data": {
-            "filters": [
-                {
-                    "action": "added",
-                    "resource_type": "task"
-                }
-            ],
-            "resource": project_gid,
-            "target": callback_url
-        }
-    }
-
-
-def get_asana_headers(pat: str, incl_content_type: bool = True) -> dict:
-    '''return asana_header object containing all necessaray headers'''
-    header_accept = {'Accept': 'application/json'}
-    header_authorization = {'Authorization': f'Bearer {pat}'}
-    header_content_type = {'Content-Type': 'application/json'}
-    return (header_accept | header_authorization | header_content_type) if incl_content_type else (header_accept | header_authorization)
