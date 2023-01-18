@@ -1,4 +1,4 @@
 '''asana API classes'''
-from .object import AsanaObject
-from .token import AsanaToken, AsanaTokenNoRefresh
-from .user import AsanaUser
+from .object import Object
+from .token import Token, TokenNoRefresh
+from .user import User

@@ -2,7 +2,7 @@
 from typing import Literal, TypedDict
 
 
-class AsanaObject(TypedDict):
+class Object(TypedDict):
     '''asana workspace from asana API'''
     gid: str  # e.g. "12345"
     resource_type: Literal["workspace", "project"]
