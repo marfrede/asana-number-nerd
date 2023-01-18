@@ -8,7 +8,7 @@ import requests
 from asana import Client as AsanaClient
 from deta import Deta
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseSettings
@@ -33,7 +33,8 @@ db = deta.Base("ann_db")  # This how to connect to or create a database.
 class Env(BaseSettings):
     '''env variables'''
     # asana app oauth2
-    number_nerd_callback: str = "https://www.asana-number-nerd.com/oauth/callback"
+    number_nerd_oauth_callback: str = "https://www.asana-number-nerd.com/oauth/callback"
+    number_nerd_webhook_callback: str = "https://www.asana-number-nerd.com/webhook/receive"
     client_id: str = "1203721176797529"
     client_secret: str
 
@@ -45,7 +46,7 @@ class Env(BaseSettings):
         env_file = ".env"
 
 
-@lru_cache()
+@ lru_cache()
 def get_env():
     '''get env variables'''
     return Env()
@@ -87,13 +88,13 @@ class AsanaObject(TypedDict):
 # ROUTES
 
 
-@app.get("/home", response_class=RedirectResponse)
+@ app.get("/home", response_class=RedirectResponse)
 async def root():
     '''redirect /home to / where the homepage is'''
     return RedirectResponse("/")
 
 
-@app.get("/", response_class=HTMLResponse)
+@ app.get("/", response_class=HTMLResponse)
 async def home(request: Request, env: Env = Depends(get_env)):
     '''
         homepage
@@ -106,7 +107,7 @@ async def home(request: Request, env: Env = Depends(get_env)):
     return templates.TemplateResponse("index.jinja2", {"request": request, "authorize_asana_url": url})
 
 
-@app.get("/oauth/callback", response_class=RedirectResponse)
+@ app.get("/oauth/callback", response_class=RedirectResponse)
 async def oauth_callback(
     request: Request,
     code: Union[str, None] = None,
@@ -134,7 +135,7 @@ async def oauth_callback(
     return RedirectResponse("/choose-projects")
 
 
-@app.get("/choose-projects", response_class=HTMLResponse)
+@ app.get("/choose-projects", response_class=HTMLResponse)
 async def choose_projects(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     # 1. auth or redirect
@@ -153,32 +154,81 @@ async def choose_projects(request: Request, env: Env = Depends(get_env)):
     })
 
 
-@app.post("/projects/read", response_class=RedirectResponse)
+@ app.post("/projects/read", response_class=RedirectResponse)
 async def read_projects(request: Request):
     '''read chosen projects from form and save to detabase'''
     projects: List[AsanaObject] = await read_projects_from_form(request=request)
     deta_obj = db.put(projects)
     request.session["projects_choosen"] = deta_obj["key"]
-    return RedirectResponse("/choose-numbering", status_code=Status.HTTP_302_FOUND)
+    return RedirectResponse("/webhook/create")
 
 
-@app.get("/choose-numbering")
-async def choose_numbering(request: Request, env: Env = Depends(get_env)):
-    '''site for the authenticated user'''
+# @app.get("/choose-numbering", response_class=HTMLResponse)
+# async def choose_numbering(request: Request, env: Env = Depends(get_env)):
+#     '''site for the authenticated user'''
+#     # 1. auth and validate or redirect
+#     asana_user, _ = get_fresh_logged_in_asana_user(request=request, env=env)
+#     projects = await read_projects_session_db(request=request)
+#     if not asana_user or not projects:
+#         return RedirectResponse("/choose-projects")
+#     # 2. respond
+#     # return templates.TemplateResponse("choose-numbering.jinja2", {
+#     #     "request": request,
+#     #     "asana_user": asana_user,
+#     #     "projects": projects,
+#     # })
+#     return RedirectResponse("/choose-numbering", status_code=Status.HTTP_302_FOUND)
+
+
+@ app.post("/webhook/create")
+async def create_weebhook(request: Request, env: Env = Depends(get_env)):
+    '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
-    asana_user, _ = get_fresh_logged_in_asana_user(request=request, env=env)
-    projects = await read_projects_session_db(request=request)
-    if not asana_user or not projects:
+    asana_user, pat = get_fresh_logged_in_asana_user(request=request, env=env)
+    projects: Union[List[AsanaObject], None] = await read_projects_session_db(request=request, delete_after_read=True)
+    if not pat or not projects:
         return RedirectResponse("/choose-projects")
-    # 2. respond
-    return templates.TemplateResponse("choose-numbering.jinja2", {
-        "request": request,
-        "asana_user": asana_user,
-        "projects": projects,
-    })
+    response = requests.post(
+        url="https://app.asana.com/api/1.0/webhooks",
+        headers={
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {pat}'
+        },
+        data={
+            "data": {
+                "filters": [
+                    {
+                        "action": "added",
+                        "resource_subtype": "task",
+                        "resource_type": "project"
+                    }
+                ],
+                "resource": projects[0]["gid"],
+                "target": f"{env.number_nerd_webhook_callback} / {asana_user['id']} / {projects[0]['gid']}"
+            }
+        },
+        timeout=20
+    )
+    if (response.status_code >= 200 and response.status_code < 400):
+        return response.json()["data"]
+    return response.json()
+
+
+@app.get("/webhook/receive/{user_gid}/{project_gid}")
+async def receive_weebhook(request: Request, user_gid: str, project_gid: str, response: Response):
+    '''callback for asana when task created (and for first handshake)'''
+    secret: Union[str, None] = request.headers.get("X-Hook-Secret")
+    if secret:
+        db.put(secret, f"x_hook_secret_{user_gid}_{project_gid}")
+        response.status_code = Status.HTTP_204_NO_CONTENT
+        response.headers["X-Hook-Secret"] = secret
+        return None
+    response.status_code = Status.HTTP_200_OK
+    return 1
+
 
 # HELPER
-
 
 async def get_authorize_asana_url(client_oauth: AsanaClient):
     '''
@@ -195,7 +245,7 @@ def create_asana_client_oauth(env: Env) -> AsanaClient:
     return AsanaClient.oauth(
         client_id=env.client_id,
         client_secret=env.client_secret,
-        redirect_uri=env.number_nerd_callback
+        redirect_uri=env.number_nerd_oauth_callback
     )
 
 
@@ -236,7 +286,7 @@ def refresh_asana_client_pat(access_token: AsanaToken, env: Env) -> Union[str, N
         'grant_type': 'refresh_token',
         'client_id': env.client_id,
         'client_secret': env.client_secret,
-        'redirect_uri': env.number_nerd_callback,
+        'redirect_uri': env.number_nerd_oauth_callback,
         'refresh_token': access_token["refresh_token"]
     }, timeout=5)
     if (response.status_code >= 200 and response.status_code < 400):
@@ -256,7 +306,10 @@ async def read_projects_from_form(request: Request) -> Coroutine[List[AsanaObjec
     return projects
 
 
-async def read_projects_session_db(request: Request) -> Coroutine[Union[List[AsanaObject], None], None, None]:
+async def read_projects_session_db(
+    request: Request,
+    delete_after_read: bool = False
+) -> Coroutine[Union[List[AsanaObject], None], None, None]:
     '''read project ids selected inside form after storing in db'''
     key: Union[str, None] = request.session.get("projects_choosen")
     if not key:
@@ -264,6 +317,7 @@ async def read_projects_session_db(request: Request) -> Coroutine[Union[List[Asa
     projects_choosen: Union[List[AsanaObject], None] = db.get(key)["value"]
     if not projects_choosen:
         return None
-    db.delete(key)
-    request.session.pop("projects_choosen")
+    if delete_after_read:
+        db.delete(key)
+        request.session.pop("projects_choosen")
     return projects_choosen
