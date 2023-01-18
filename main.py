@@ -27,8 +27,8 @@ templates = Jinja2Templates(directory="templates")
 deta = Deta()
 db = deta.Base("ann_db")  # This how to connect to or create a database.
 
-
 #  SETTINGS
+
 
 class Env(BaseSettings):
     '''env variables'''
@@ -218,14 +218,38 @@ async def create_weebhook(request: Request, env: Env = Depends(get_env)):
 @app.post("/webhook/receive")
 async def receive_weebhook(request: Request, response: Response):
     '''callback for asana when task created (and for first handshake)'''
+    pat = "1/1199181200186785:d6752d0cc04c304e22d12e0b57163c14"
     secret: Union[str, None] = request.headers.get("X-Hook-Secret")
     if secret:
         # db.put(secret, f"x_hook_secret_{user_gid}_{project_gid}")
         response.status_code = Status.HTTP_204_NO_CONTENT
         response.headers["X-Hook-Secret"] = secret
         return None
-    # updated task that was created on/before this webhook call
-    pat = "1/1199181200186785:d6752d0cc04c304e22d12e0b57163c14"
+    # create a task
+    body: dict = await request.json()
+    task_created_gid: str = body["events"][0]["resource"]["gid"]
+    task_created_name = requests.get(
+        timeout=20,
+        url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
+        headers={
+            "Accept": "application/json",
+            "Authorization": f"Bearer {pat}"
+        }
+    ).json()["data"]["name"]
+    requests.put(
+        timeout=20,
+        url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {pat}"
+        },
+        json={
+            "data": {
+                "name": f"{'1'} {task_created_name}"
+            }
+        }
+    )
 
 
 # HELPER
