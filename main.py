@@ -190,24 +190,8 @@ async def create_weebhook(request: Request, env: Env = Depends(get_env)):
         return RedirectResponse("/choose-projects")
     response = requests.post(
         url="https://app.asana.com/api/1.0/webhooks",
-        headers={
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {pat}'
-        },
-        data={
-            "data": {
-                "filters": [
-                    {
-                        "action": "added",
-                        "resource_subtype": "task",
-                        "resource_type": "project"
-                    }
-                ],
-                "resource": projects[0]["gid"],
-                "target": f"{env.number_nerd_webhook_callback} / {asana_user['id']} / {projects[0]['gid']}"
-            }
-        },
+        headers=get_asana_headers(pat=pat, incl_content_type=True),
+        data=get_on_task_created_webhook(project_gid=projects[0]["gid"], callback_url=env.number_nerd_webhook_callback),
         timeout=20
     )
     if (response.status_code >= 200 and response.status_code < 400):
@@ -231,24 +215,13 @@ async def receive_weebhook(request: Request, response: Response):
     task_created_name = requests.get(
         timeout=20,
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
-        headers={
-            "Accept": "application/json",
-            "Authorization": f"Bearer {pat}"
-        }
+        headers=get_asana_headers(pat=pat, incl_content_type=False)
     ).json()["data"]["name"]
     requests.put(
         timeout=20,
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}",
-        headers={
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": f"Bearer {pat}"
-        },
-        json={
-            "data": {
-                "name": f"{'1'} {task_created_name}"
-            }
-        }
+        headers=get_asana_headers(pat=pat, incl_content_type=True),
+        json={"data": {"name": f"{'1'} {task_created_name}"}}
     )
 
 
@@ -277,10 +250,8 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     '''a general asana api get request to a given url'''
     response = requests.get(
         url=url,
-        headers={
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {pat}'
-        }, timeout=5
+        headers=get_asana_headers(pat=pat, incl_content_type=False),
+        timeout=5
     )
     if (response.status_code >= 200 and response.status_code < 400):
         return response.json()["data"]
@@ -345,3 +316,27 @@ async def read_projects_session_db(
         db.delete(key)
         request.session.pop("projects_choosen")
     return projects_choosen
+
+
+def get_on_task_created_webhook(project_gid: str, callback_url: str) -> dict:
+    '''get the requets body for a new POST /webhooks listening to a task added to a given project'''
+    return {
+        "data": {
+            "filters": [
+                {
+                    "action": "added",
+                    "resource_type": "task"
+                }
+            ],
+            "resource": project_gid,
+            "target": callback_url
+        }
+    }
+
+
+def get_asana_headers(pat: str, incl_content_type: bool = True) -> dict:
+    '''return asana_header object containing all necessaray headers'''
+    header_accept = {'Accept': 'application/json'}
+    header_authorization = {'Authorization': f'Bearer {pat}'}
+    header_content_type = {'Content-Type': 'application/json'}
+    return (header_accept | header_authorization | header_content_type) if incl_content_type else (header_accept | header_authorization)
