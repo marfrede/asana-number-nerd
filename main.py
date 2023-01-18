@@ -13,7 +13,7 @@ from fastapi.templating import Jinja2Templates
 from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
-from classes import local_env
+from classes.local_env import Env, get_env
 
 # init fastapi
 app = FastAPI()
@@ -71,7 +71,7 @@ async def root():
 
 
 @ app.get("/", response_class=HTMLResponse)
-async def home(request: Request, env: local_env.Env = Depends(local_env.get_env)):
+async def home(request: Request, env: Env = Depends(get_env)):
     '''
         homepage
         display the asana number nerd (ann) description
@@ -88,7 +88,7 @@ async def oauth_callback(
     request: Request,
     code: Union[str, None] = None,
     state: Union[str, None] = None,
-    env: local_env.Env = Depends(local_env.get_env)
+    env: Env = Depends(get_env)
 ):
     '''
         callback ednpoint for asanas oauth step 1
@@ -112,7 +112,7 @@ async def oauth_callback(
 
 
 @ app.get("/choose-projects", response_class=HTMLResponse)
-async def choose_projects(request: Request, env: local_env.Env = Depends(local_env.get_env)):
+async def choose_projects(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     # 1. auth or redirect
     asana_user, pat = get_fresh_logged_in_asana_user(request=request, env=env)
@@ -157,7 +157,7 @@ async def read_projects(request: Request):
 
 
 @ app.post("/webhook/create")
-async def create_weebhook(request: Request, env: local_env.Env = Depends(local_env.get_env)):
+async def create_weebhook(request: Request, env: Env = Depends(get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
     _, pat = get_fresh_logged_in_asana_user(request=request, env=env)
@@ -213,7 +213,7 @@ async def get_authorize_asana_url(client_oauth: AsanaClient):
     return (url, state)
 
 
-def create_asana_client_oauth(env: local_env.Env) -> AsanaClient:
+def create_asana_client_oauth(env: Env) -> AsanaClient:
     '''cerate specific http client for asana API with oauth for login'''
     return AsanaClient.oauth(
         client_id=env.client_id,
@@ -234,7 +234,7 @@ def asana_api_get(url: str, pat: str) -> List[AsanaObject]:
     return None
 
 
-def get_fresh_logged_in_asana_user(request: Request, env: local_env.Env) -> Tuple[Union[AsanaUser, None], Union[str, None]]:
+def get_fresh_logged_in_asana_user(request: Request, env: Env) -> Tuple[Union[AsanaUser, None], Union[str, None]]:
     '''read user id from session and read user from detabase'''
     asana_user_id: Union[str, None] = request.session.get("asana_user_id", None)
     if not asana_user_id:
@@ -246,7 +246,7 @@ def get_fresh_logged_in_asana_user(request: Request, env: local_env.Env) -> Tupl
     return (access_token["data"], pat)
 
 
-def refresh_asana_client_pat(access_token: AsanaToken, env: local_env.Env) -> Union[str, None]:
+def refresh_asana_client_pat(access_token: AsanaToken, env: Env) -> Union[str, None]:
     '''
         refresh asana access_token (pat) with refresh_token
         save new access_token object in db
