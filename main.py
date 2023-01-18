@@ -215,17 +215,17 @@ async def create_weebhook(request: Request, env: Env = Depends(get_env)):
     return response.json()
 
 
-@app.get("/webhook/receive/{user_gid}/{project_gid}")
-async def receive_weebhook(request: Request, user_gid: str, project_gid: str, response: Response):
+@app.post("/webhook/receive")
+async def receive_weebhook(request: Request, response: Response):
     '''callback for asana when task created (and for first handshake)'''
     secret: Union[str, None] = request.headers.get("X-Hook-Secret")
     if secret:
-        db.put(secret, f"x_hook_secret_{user_gid}_{project_gid}")
+        # db.put(secret, f"x_hook_secret_{user_gid}_{project_gid}")
         response.status_code = Status.HTTP_204_NO_CONTENT
         response.headers["X-Hook-Secret"] = secret
         return None
-    response.status_code = Status.HTTP_200_OK
-    return 1
+    # updated task that was created on/before this webhook call
+    pat = "1/1199181200186785:d6752d0cc04c304e22d12e0b57163c14"
 
 
 # HELPER
