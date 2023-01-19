@@ -1,4 +1,4 @@
-'''asana http helper'''
+'''asana http helper functions'''
 from typing import List
 
 import requests

@@ -3,7 +3,6 @@
 import ast
 from typing import Coroutine, List, Union
 
-import requests
 from asana import Client as AsanaClient
 from deta import Deta
 from fastapi import Depends, FastAPI, Request
@@ -16,8 +15,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from classes.asana import Object as AsanaObject
 from classes.asana import Token as AsanaToken
 from classes.local_env import Env, get_env
-from functions import asana
-from mymodules.asana.functions import http as asana_http
+from mymodules import asana
 
 # init fastapi
 app = FastAPI()
@@ -45,8 +43,8 @@ async def home(request: Request, env: Env = Depends(get_env)):
         display the asana number nerd (ann) description
         display href button to auth ann with the users private asana account
     '''
-    asana_client_oauth: AsanaClient = asana.oauth_client(env)
-    url, state = await asana.auth_url(asana_client_oauth)
+    asana_client_oauth: AsanaClient = asana.oauth.oauth_client(env)
+    url, state = await asana.oauth.auth_url(asana_client_oauth)
     request.session["state"] = state
     return templates.TemplateResponse("index.jinja2", {"request": request, "authorize_asana_url": url})
 
@@ -69,7 +67,7 @@ async def oauth_callback(
         return RedirectResponse("/")
 
     # fetch auth_token for user
-    asana_client_oauth: AsanaClient = asana.oauth_client(env)
+    asana_client_oauth: AsanaClient = asana.oauth.oauth_client(env)
     access_token: AsanaToken = asana_client_oauth.session.fetch_token(code=code)
 
     # store auth_token in db and db key in session
@@ -83,13 +81,13 @@ async def oauth_callback(
 async def choose_projects(request: Request, env: Env = Depends(get_env)):
     '''site for the authenticated user'''
     # 1. auth or redirect
-    asana_user, pat = asana.refresh_pat(request=request, env=env)
+    asana_user, pat = asana.auth.refresh_pat(request=request, env=env)
     if (not asana_user or not pat):
         return RedirectResponse("/")
     # 2. respond
-    workspaces: List[AsanaObject] = asana_http.http_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
+    workspaces: List[AsanaObject] = asana.http.http_get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
     for workspace in workspaces:
-        projects: List[AsanaObject] = asana_http.http_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
+        projects: List[AsanaObject] = asana.http.http_get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
         workspace["projects"] = projects
     return templates.TemplateResponse("choose-projects.jinja2", {
         "request": request,
@@ -128,13 +126,13 @@ async def read_projects(request: Request):
 async def create_weebhook(request: Request, env: Env = Depends(get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
-    _, pat = asana.refresh_pat(request=request, env=env)
+    _, pat = asana.auth.refresh_pat(request=request, env=env)
     projects: Union[List[AsanaObject], None] = await read_projects_session_db(request=request, delete_after_read=True)
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
-    response = asana_http.http_post(
+    response = asana.http.http_post(
         url="https://app.asana.com/api/1.0/webhooks", pat=pat,
-        data=asana.get_webhook(project_gid=projects[0]["gid"], callback_url=env.number_nerd_webhook_callback),
+        data=asana.webhooks.get_webhook(project_gid=projects[0]["gid"], callback_url=env.number_nerd_webhook_callback),
     )
     if (response.status_code >= 200 and response.status_code < 400):
         return response.json()["data"]
@@ -154,10 +152,10 @@ async def receive_weebhook(request: Request, response: Response):
     # create a task
     body: dict = await request.json()
     task_created_gid: str = body["events"][0]["resource"]["gid"]
-    task_created_name = asana_http.http_get(
+    task_created_name = asana.http.http_get(
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}", pat=pat,
     )["name"]
-    asana_http.http_put(
+    asana.http.http_put(
         url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}", pat=pat,
         json={"data": {"name": f"{'1'} {task_created_name}"}}
     )
