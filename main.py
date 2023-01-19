@@ -11,10 +11,7 @@ from fastapi.templating import Jinja2Templates
 from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
-from classes.asana import Object as AsanaObject
-from classes.asana import Token as AsanaToken
-from classes.local_env import Env, get_env
-from mymodules import asana
+from mymodules import asana, environment
 
 # init fastapi
 app = FastAPI()
@@ -36,7 +33,7 @@ async def root():
 
 
 @ app.get("/", response_class=HTMLResponse)
-async def home(request: Request, env: Env = Depends(get_env)):
+async def home(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''
         homepage
         display the asana number nerd (ann) description
@@ -52,7 +49,7 @@ async def oauth_callback(
     request: Request,
     code: Union[str, None] = None,
     state: Union[str, None] = None,
-    env: Env = Depends(get_env)
+    env: environment.Env = Depends(environment.get_env)
 ):
     '''
         callback ednpoint for asanas oauth step 1
@@ -65,7 +62,7 @@ async def oauth_callback(
         return RedirectResponse("/")
 
     # fetch auth_token for user
-    access_token: AsanaToken = asana.oauth.get_client(env).session.fetch_token(code=code)
+    access_token: asana.Token = asana.oauth.get_client(env).session.fetch_token(code=code)
 
     # store auth_token in db and db key in session
     asana_user_id: str = access_token['data']["id"]
@@ -75,16 +72,16 @@ async def oauth_callback(
 
 
 @ app.get("/choose-projects", response_class=HTMLResponse)
-async def choose_projects(request: Request, env: Env = Depends(get_env)):
+async def choose_projects(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''site for the authenticated user'''
     # 1. auth or redirect
     asana_user, pat = asana.auth.refresh_pat(request=request, env=env)
     if (not asana_user or not pat):
         return RedirectResponse("/")
     # 2. respond
-    workspaces: List[AsanaObject] = asana.http.get(url="workspaces", pat=pat)
+    workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
     for workspace in workspaces:
-        projects: List[AsanaObject] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
+        projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
         workspace["projects"] = projects
     return templates.TemplateResponse("choose-projects.jinja2", {
         "request": request,
@@ -96,7 +93,7 @@ async def choose_projects(request: Request, env: Env = Depends(get_env)):
 @ app.post("/projects/read", response_class=RedirectResponse)
 async def read_projects(request: Request):
     '''read chosen projects from form and save to detabase'''
-    projects: List[AsanaObject] = await read_projects_from_form(request=request)
+    projects: List[asana.Object] = await read_projects_from_form(request=request)
     deta_obj = db.put(projects)
     request.session["projects_choosen"] = deta_obj["key"]
     return RedirectResponse("/webhook/create")
@@ -120,11 +117,11 @@ async def read_projects(request: Request):
 
 
 @ app.post("/webhook/create")
-async def create_weebhook(request: Request, env: Env = Depends(get_env)):
+async def create_weebhook(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
     _, pat = asana.auth.refresh_pat(request=request, env=env)
-    projects: Union[List[AsanaObject], None] = await read_projects_session_db(request=request, delete_after_read=True)
+    projects: Union[List[asana.Object], None] = await read_projects_session_db(request=request, delete_after_read=True)
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
     response = asana.http.post(
@@ -161,23 +158,23 @@ async def receive_weebhook(request: Request, response: Response):
 # HELPER
 
 
-async def read_projects_from_form(request: Request) -> Coroutine[List[AsanaObject], None, None]:
+async def read_projects_from_form(request: Request) -> Coroutine[List[asana.Object], None, None]:
     '''read project ids selected inside form'''
     form = await request.form()
     project_strs: List[str] = list(form.keys())
-    projects: List[AsanaObject] = list(map(ast.literal_eval, project_strs))
+    projects: List[asana.Object] = list(map(ast.literal_eval, project_strs))
     return projects
 
 
 async def read_projects_session_db(
     request: Request,
     delete_after_read: bool = False
-) -> Coroutine[Union[List[AsanaObject], None], None, None]:
+) -> Coroutine[Union[List[asana.Object], None], None, None]:
     '''read project ids selected inside form after storing in db'''
     key: Union[str, None] = request.session.get("projects_choosen")
     if not key:
         return None
-    projects_choosen: Union[List[AsanaObject], None] = db.get(key)["value"]
+    projects_choosen: Union[List[asana.Object], None] = db.get(key)["value"]
     if not projects_choosen:
         return None
     if delete_after_read:
