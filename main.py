@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 import ast
-from typing import Coroutine, List, Union
+from typing import Any, Coroutine, Dict, List, Union
 
 from deta import Deta
 from fastapi import Depends, FastAPI, Request
@@ -75,10 +75,12 @@ async def oauth_callback(
 async def choose_projects(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''site for the authenticated user'''
     # 1. auth or redirect
-    asana_user, pat = asana.auth.refresh_pat(request=request, env=env)
-    if (not asana_user or not pat):
+    access_token: Union[asana.Token, None] = read_access_token_from_db(session=request.session)
+    access_token, asana_user, pat = asana.auth.refresh_token(access_token=access_token, env=env)
+    if (not access_token):
         return RedirectResponse("/")
-    # 2. respond
+    # 2. save new acess_token and respond
+    db.put(access_token, f"user_{access_token['data']['id']}")
     workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
     for workspace in workspaces:
         projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
@@ -120,7 +122,10 @@ async def read_projects(request: Request):
 async def create_weebhook(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
-    _, pat = asana.auth.refresh_pat(request=request, env=env)
+    access_token: Union[asana.Token, None] = read_access_token_from_db(session=request.session)
+    access_token, _, pat = asana.auth.refresh_token(access_token=access_token, env=env)
+    # 2. save new acess_token and respond
+    db.put(access_token, f"user_{access_token['data']['id']}")
     projects: Union[List[asana.Object], None] = await read_projects_session_db(request=request, delete_after_read=True)
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
@@ -181,3 +186,15 @@ async def read_projects_session_db(
         db.delete(key)
         request.session.pop("projects_choosen")
     return projects_choosen
+
+
+def read_access_token_from_db(session: Dict[str, Any]) -> Union[asana.Token, None]:
+    '''
+        read user_id from session and then asana_access_token from db
+        return None if user_id not found in session or access_token not found in db
+    '''
+    asana_user_id: Union[str, None] = session.get("asana_user_id", None)
+    if not asana_user_id:
+        return None
+    access_token: Union[asana.Token, None] = db.get(f"user_{asana_user_id}")
+    return access_token
