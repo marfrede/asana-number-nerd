@@ -4,8 +4,8 @@ from typing import Tuple, Union
 
 import requests
 
-from mymodules import environment
-from mymodules.asana import classes
+from modules import environment
+from modules.asana import classes
 
 
 def refresh_token(old_access_token: Union[classes.Token, None], env: environment) -> Tuple[

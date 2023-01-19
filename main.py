@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
-from mymodules import asana, environment
+from modules import asana, environment
 
 # init fastapi
 app = FastAPI()
