@@ -5,11 +5,13 @@ import requests
 
 from classes.asana.object import Object
 
+URL = "https://app.asana.com/api/1.0"
+
 
 def get(url: str, pat: str) -> List[Object]:
     '''a general asana api get request to a given url'''
     response = requests.get(
-        url=url,
+        url=f"{URL}/{url}",
         headers=__get_headers(pat=pat, incl_content_type=False),
         timeout=5
     )
@@ -21,7 +23,7 @@ def get(url: str, pat: str) -> List[Object]:
 def post(url: str, pat: str, data: dict) -> List[Object]:
     '''a general asana api post request to a given url'''
     response = requests.post(
-        url=url,
+        url=f"{URL}/{url}",
         headers=__get_headers(pat=pat, incl_content_type=True),
         data=data,
         timeout=10
@@ -34,7 +36,7 @@ def post(url: str, pat: str, data: dict) -> List[Object]:
 def put(url: str, pat: str, json: dict) -> List[Object]:
     '''a general asana api put request to a given url'''
     response = requests.put(
-        url=url,
+        url=f"{URL}/{url}",
         headers=__get_headers(pat=pat, incl_content_type=True),
         json=json,
         timeout=10

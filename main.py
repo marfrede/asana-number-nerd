@@ -82,9 +82,9 @@ async def choose_projects(request: Request, env: Env = Depends(get_env)):
     if (not asana_user or not pat):
         return RedirectResponse("/")
     # 2. respond
-    workspaces: List[AsanaObject] = asana.http.get(url="https://app.asana.com/api/1.0/workspaces", pat=pat)
+    workspaces: List[AsanaObject] = asana.http.get(url="workspaces", pat=pat)
     for workspace in workspaces:
-        projects: List[AsanaObject] = asana.http.get(url=f"https://app.asana.com/api/1.0/workspaces/{workspace['gid']}/projects", pat=pat)
+        projects: List[AsanaObject] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
         workspace["projects"] = projects
     return templates.TemplateResponse("choose-projects.jinja2", {
         "request": request,
@@ -128,8 +128,10 @@ async def create_weebhook(request: Request, env: Env = Depends(get_env)):
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
     response = asana.http.post(
-        url="https://app.asana.com/api/1.0/webhooks", pat=pat,
-        data=asana.webhooks.post_request_body(project_gid=projects[0]["gid"], callback_url=env.number_nerd_webhook_callback),
+        url="webhooks", pat=pat,
+        data=asana.webhooks.post_request_body(
+            project_gid=projects[0]["gid"],
+            callback_url=env.number_nerd_webhook_callback),
     )
     if (response.status_code >= 200 and response.status_code < 400):
         return response.json()["data"]
@@ -149,11 +151,9 @@ async def receive_weebhook(request: Request, response: Response):
     # create a task
     body: dict = await request.json()
     task_created_gid: str = body["events"][0]["resource"]["gid"]
-    task_created_name = asana.http.get(
-        url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}", pat=pat,
-    )["name"]
+    task_created_name = asana.http.get(url=f"tasks/{task_created_gid}", pat=pat,)["name"]
     asana.http.put(
-        url=f"https://app.asana.com/api/1.0/tasks/{task_created_gid}", pat=pat,
+        url=f"tasks/{task_created_gid}", pat=pat,
         json={"data": {"name": f"{'1'} {task_created_name}"}}
     )
 
