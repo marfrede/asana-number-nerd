@@ -8,7 +8,7 @@ from mymodules import environment
 from mymodules.asana import classes
 
 
-def refresh_token(access_token: Union[classes.Token, None], env: environment) -> Tuple[
+def refresh_token(old_access_token: Union[classes.Token, None], env: environment) -> Tuple[
     Union[classes.Token, None],
     Union[classes.User, None],
     Union[str, None]
@@ -17,12 +17,12 @@ def refresh_token(access_token: Union[classes.Token, None], env: environment) ->
         make a post request to asana oauth in order to get a new access_token
         return (access_token, user, pat)
     '''
-    if not access_token or not env:
+    if not old_access_token or not env:
         return (None, None, None)
-    access_token: Union[classes.Token, None] = __refresh_asana_client_pat(access_token=access_token, env=env)
-    if not access_token:
+    new_access_token: Union[classes.Token, None] = __refresh_asana_client_pat(access_token=old_access_token, env=env)
+    if not new_access_token:
         return (None, None, None)
-    return (access_token, access_token['data'], access_token['access_token'])
+    return (new_access_token, new_access_token['data'], new_access_token['access_token'])
 
 
 # HELPER

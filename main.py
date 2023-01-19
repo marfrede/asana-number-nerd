@@ -76,7 +76,7 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
     '''site for the authenticated user'''
     # 1. auth or redirect
     access_token: Union[asana.Token, None] = read_access_token_from_db(session=request.session)
-    access_token, asana_user, pat = asana.auth.refresh_token(access_token=access_token, env=env)
+    access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=access_token, env=env)
     if (not access_token):
         return RedirectResponse("/")
     # 2. save new acess_token and respond
@@ -123,7 +123,7 @@ async def create_weebhook(request: Request, env: environment.Env = Depends(envir
     '''create the webhook to listen to create-task events inside given projects'''
     # 1. auth and validate or redirect
     access_token: Union[asana.Token, None] = read_access_token_from_db(session=request.session)
-    access_token, _, pat = asana.auth.refresh_token(access_token=access_token, env=env)
+    access_token, _, pat = asana.auth.refresh_token(old_access_token=access_token, env=env)
     # 2. save new acess_token and respond
     db.put(access_token, f"user_{access_token['data']['id']}")
     projects: Union[List[asana.Object], None] = await read_projects_session_db(request=request, delete_after_read=True)
