@@ -1,2 +1,3 @@
 '''types dafed in detabase'''
-from user import DetaUser
+from .classes.user import User
+from .functions.operations import *

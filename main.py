@@ -11,7 +11,7 @@ from fastapi.templating import Jinja2Templates
 from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
-from modules import asana, environment
+from modules import asana, deta, environment
 
 # init fastapi
 app = FastAPI()
@@ -22,8 +22,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # init deta databse
-deta = Deta()
-detabase = deta.Base("ann_db")  # This how to connect to or create a database.
+deta_project = Deta()
+detabase = deta_project.Base("ann_db")  # This how to connect to or create a database.
 
 
 @ app.get("/home", response_class=RedirectResponse)
@@ -67,7 +67,7 @@ async def oauth_callback(
     # store auth_token in db and db key in session
     asana_user_id: str = access_token['data']["id"]
     request.session['asana_user_id'] = asana_user_id
-    detabase.put(access_token, f"user_{asana_user_id}")
+    deta.put_access_token(asana_user_id, access_token=access_token)
     return RedirectResponse("/choose-projects")
 
 
