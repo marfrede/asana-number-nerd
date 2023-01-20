@@ -23,7 +23,7 @@ templates = Jinja2Templates(directory="templates")
 
 # init deta databse
 deta = Deta()
-db = deta.Base("ann_db")  # This how to connect to or create a database.
+detabase = deta.Base("ann_db")  # This how to connect to or create a database.
 
 
 @ app.get("/home", response_class=RedirectResponse)
@@ -67,7 +67,7 @@ async def oauth_callback(
     # store auth_token in db and db key in session
     asana_user_id: str = access_token['data']["id"]
     request.session['asana_user_id'] = asana_user_id
-    db.put(access_token, f"user_{asana_user_id}")
+    detabase.put(access_token, f"user_{asana_user_id}")
     return RedirectResponse("/choose-projects")
 
 
@@ -80,7 +80,7 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
     if (not access_token):
         return RedirectResponse("/")
     # 2. save new acess_token and respond
-    db.put(access_token, f"user_{access_token['data']['id']}")
+    detabase.put(access_token, f"user_{access_token['data']['id']}")
     workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
     for workspace in workspaces:
         projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
@@ -96,7 +96,7 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
 async def read_projects(request: Request):
     '''read chosen projects from form and save to detabase'''
     projects: List[asana.Object] = await read_projects_from_form(request=request)
-    deta_obj = db.put(projects)
+    deta_obj = detabase.put(projects)
     request.session["projects_choosen"] = deta_obj["key"]
     return RedirectResponse("/webhook/create")
 
@@ -125,7 +125,7 @@ async def create_weebhook(request: Request, env: environment.Env = Depends(envir
     access_token: Union[asana.Token, None] = read_access_token_from_db(session=request.session)
     access_token, _, pat = asana.auth.refresh_token(old_access_token=access_token, env=env)
     # 2. save new acess_token and respond
-    db.put(access_token, f"user_{access_token['data']['id']}")
+    detabase.put(access_token, f"user_{access_token['data']['id']}")
     projects: Union[List[asana.Object], None] = await read_projects_session_db(request=request, delete_after_read=True)
     if not pat or not projects:
         return RedirectResponse("/choose-projects")
@@ -179,11 +179,11 @@ async def read_projects_session_db(
     key: Union[str, None] = request.session.get("projects_choosen")
     if not key:
         return None
-    projects_choosen: Union[List[asana.Object], None] = db.get(key)["value"]
+    projects_choosen: Union[List[asana.Object], None] = detabase.get(key)["value"]
     if not projects_choosen:
         return None
     if delete_after_read:
-        db.delete(key)
+        detabase.delete(key)
         request.session.pop("projects_choosen")
     return projects_choosen
 
@@ -196,5 +196,5 @@ def read_access_token_from_db(session: Dict[str, Any]) -> Union[asana.Token, Non
     asana_user_id: Union[str, None] = session.get("asana_user_id", None)
     if not asana_user_id:
         return None
-    access_token: Union[asana.Token, None] = db.get(f"user_{asana_user_id}")
+    access_token: Union[asana.Token, None] = detabase.get(f"user_{asana_user_id}")
     return access_token
