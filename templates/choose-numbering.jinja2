@@ -25,6 +25,15 @@
 				<li>{{project["name"]}}</li>
 				{% endfor %}
 			</ul>
+			<br>
+			<p>The number will be set<span class="highlight"> as prefix </span>of the tasks name.</p>
+			<p>The prefix will be<span class="highlight"> '#xxx ', </span>a hashtag followed by a three-digit number</p>
+			<p>The number will added whenever a task<span class="highlight"> is added </span> to any of the given projects.
+			</p>
+			<p>e.g.: #025 make coffee, #001 do the laundry, #4269 fight the endboss</p>
+			<p>For example when you create a new task with the title 'make coffee' inside the project
+				'{{projects[0]['name']}}' then a short time later it is renamed #001 make coffee. (or #002 make coffee, or #003
+				make coffee or...)</p>
 
 			<div class="content" style="text-align: center;">
 				<button>Confirm and start numbering</button>
