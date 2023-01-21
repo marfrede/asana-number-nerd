@@ -7,7 +7,6 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
 from modules import asana, deta, environment
@@ -72,7 +71,7 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
     # 1. auth or redirect
     user: Union[deta.User, None] = read_user_from_db(session=request.session)
     access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=(user["access_token"] if user else None), env=env)
-    if (not access_token):
+    if not access_token:
         return RedirectResponse("/")
     # 2. save new acess_token and respond
     deta.put_access_token(asana_user_id=access_token['data']['id'], access_token=access_token)
