@@ -10,6 +10,7 @@ class Webhook(TypedDict):
     project_gid: str
     webhook_gid: Union[str, None]
     is_active: bool
+    task_counter: int
 
 
 class User(TypedDict):

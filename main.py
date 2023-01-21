@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette import status as Status
 from starlette.middleware.sessions import SessionMiddleware
 
 from modules import asana, deta, environment
@@ -67,9 +68,9 @@ async def oauth_callback(
 
 @ app.get("/choose-projects", response_class=HTMLResponse)
 async def choose_projects(request: Request, env: environment.Env = Depends(environment.get_env)):
-    '''site for the authenticated user'''
+    '''site for the authenticated user to choose projects'''
     # 1. auth or redirect
-    user: Union[deta.User, None] = read_user_from_db(session=request.session)
+    user: Union[deta.User, None] = get_user_from_session(session=request.session)
     access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=(user["access_token"] if user else None), env=env)
     if not access_token:
         return RedirectResponse("/")
@@ -86,12 +87,19 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
     })
 
 
-@app.post("/choose-numbering", response_class=HTMLResponse)
-async def choose_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
-    '''site for the authenticated user'''
-    # read projects from form
+@app.post("/choose-projects", response_class=HTMLResponse)
+async def read_projects(request: Request):
+    '''site for the authenticated user to be redirected to post request'''
     projects: List[asana.Object] = await read_projects_from_form(request=request)
-    user: Union[deta.User, None] = deta.put_projects(asana_user_id=request.session.get("asana_user_id", None), projects=projects)
+    deta.put_projects(asana_user_id=get_user_id_from_session(request.session), projects=projects)
+    return RedirectResponse('/finish', status_code=Status.HTTP_302_FOUND)
+
+
+@app.get("/finish", response_class=HTMLResponse)
+async def choose_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''site for the authenticated user to finish setup'''
+    # read projects from form
+    user: Union[deta.User, None] = deta.get_user(request.session.get("asana_user_id", None))
     if not user:
         return RedirectResponse("/choose-projects")
     # 1. auth and validate or redirect
@@ -102,7 +110,7 @@ async def choose_numbering(request: Request, env: environment.Env = Depends(envi
     return templates.TemplateResponse("choose-numbering.jinja2", {
         "request": request,
         "asana_user": asana_user,
-        "projects": projects,
+        "projects": user["projects"],
     })
     # return RedirectResponse("/choose-numbering", status_code=Status.HTTP_302_FOUND)
 
@@ -177,13 +185,16 @@ async def read_projects_from_form(request: Request) -> Coroutine[List[asana.Obje
 #     return projects_choosen
 
 
-def read_user_from_db(session: Dict[str, Any]) -> Union[deta.User, None]:
+def get_user_from_session(session: Dict[str, Any]) -> Union[deta.User, None]:
     '''
-        read user_id from session and then asana_access_token from db
-        return None if user_id not found in session or access_token not found in db
+        read user_id from session and then deta_user from db
+        return None if user_id not found in session or deta_user not found in db
     '''
+    asana_user_id: Union[str, None] = get_user_id_from_session(session)
+    return deta.get_user(asana_user_id) if asana_user_id else None
+
+
+def get_user_id_from_session(session: Dict[str, Any]) -> Union[str, None]:
+    '''read user_id from session and then asana_access_token from db'''
     asana_user_id: Union[str, None] = session.get("asana_user_id", None)
-    if not asana_user_id:
-        return None
-    user: deta.User = deta.get_user(asana_user_id)
-    return user
+    return asana_user_id
