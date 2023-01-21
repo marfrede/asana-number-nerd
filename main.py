@@ -4,7 +4,7 @@ import ast
 from typing import Any, Coroutine, Dict, List, Union
 
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette import status as Status
@@ -98,8 +98,7 @@ async def read_projects(request: Request):
 @app.get("/finish", response_class=HTMLResponse)
 async def choose_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''site for the authenticated user to finish setup'''
-    # read projects from form
-    user: Union[deta.User, None] = deta.get_user(request.session.get("asana_user_id", None))
+    user: Union[deta.User, None] = get_user_from_session(request.session)
     if not user:
         return RedirectResponse("/choose-projects")
     # 1. auth and validate or redirect
@@ -137,22 +136,26 @@ async def choose_numbering(request: Request, env: environment.Env = Depends(envi
 #     return response.json()
 
 
-# @app.post("/webhook/receive")
-# async def receive_weebhook(request: Request, response: Response):
+# @app.post("/webhook/receive/{user_gid}/{project_gid}")
+# async def receive_weebhook(request: Request, user_gid: str, project_gid: str, response: Response):
 #     '''callback for asana when task created (and for first handshake)'''
-#     pat = "1/1199181200186785:d6752d0cc04c304e22d12e0b57163c14"
+#     asana_user_id = user_gid
 #     secret: Union[str, None] = request.headers.get("X-Hook-Secret")
 #     if secret:
-#         # db.put(secret, f"x_hook_secret_{user_gid}_{project_gid}")
+#         deta.put_projects_webhook_secret(asana_user_id, project_gid, x_hook_secret=secret)
 #         response.status_code = Status.HTTP_204_NO_CONTENT
 #         response.headers["X-Hook-Secret"] = secret
 #         return None
-#     # create a task
+#     # TODO check the signature is valid!
+#     signature: Union[str, None] = request.headers.get("X-Hook-Signature")
+#     # TODO end
+#     user = deta.get_user(asana_user_id)
+#     # rename the task created
 #     body: dict = await request.json()
 #     task_created_gid: str = body["events"][0]["resource"]["gid"]
-#     task_created_name = asana.http.get(url=f"tasks/{task_created_gid}", pat=pat,)["name"]
+#     task_created_name = asana.http.get(url=f"tasks/{task_created_gid}", pat=user["access_token"])["name"]
 #     asana.http.put(
-#         url=f"tasks/{task_created_gid}", pat=pat,
+#         url=f"tasks/{task_created_gid}", pat=user["access_token"],
 #         json={"data": {"name": f"{'1'} {task_created_name}"}}
 #     )
 
