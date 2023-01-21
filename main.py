@@ -71,7 +71,7 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
     '''site for the authenticated user'''
     # 1. auth or redirect
     user: Union[deta.User, None] = read_user_from_db(session=request.session)
-    access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
+    access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=(user["access_token"] if user else None), env=env)
     if (not access_token):
         return RedirectResponse("/")
     # 2. save new acess_token and respond

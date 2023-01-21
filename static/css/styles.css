@@ -65,12 +65,13 @@ body {
 
 .highlight::before {
 	/* Highlight color */
-	background-color: #fc636baa;
+	background-color: #fc636b80;
 	content: "";
 	position: absolute;
 	width: calc(100% + 4px);
 	height: 60%;
 	left: -2px;
+	top: 5px;
 	bottom: 0;
 	z-index: -1;
 	transform: rotate(-1deg);
