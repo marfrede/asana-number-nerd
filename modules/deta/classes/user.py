@@ -14,7 +14,6 @@ class Webhook(TypedDict):
 
 class User(TypedDict):
     '''represents one ann user in the detabase'''
-    # key => {user_id}
     access_token: asana.Token
     projects: List[asana.Object]
     webhooks: List[Webhook]
