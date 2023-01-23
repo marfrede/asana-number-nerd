@@ -22,16 +22,16 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 
-@ app.get("/home", response_class=RedirectResponse)
+@ app.get("/", response_class=RedirectResponse)
 async def root():
-    '''redirect /home to / where the homepage is'''
-    return RedirectResponse("/")
+    '''redirect /start to / where the setup start page is'''
+    return RedirectResponse("/start")
 
 
-@ app.get("/", response_class=HTMLResponse)
-async def home(request: Request, env: environment.Env = Depends(environment.get_env)):
+@ app.get("/start", response_class=HTMLResponse)
+async def start(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''
-        homepage
+        start page (setup #1)
         display the asana number nerd (ann) description
         display href button to auth ann with the users private asana account
     '''
@@ -69,9 +69,11 @@ async def oauth_callback(
 
 @ app.get("/choose-projects", response_class=HTMLResponse)
 async def choose_projects(request: Request, env: environment.Env = Depends(environment.get_env)):
-    '''site for the authenticated user to choose projects'''
+    '''
+        choose-projects (setup #2)
+    '''
     # 1. auth or redirect
-    user: Union[deta.User, None] = get_user_from_session_and_db(session=request.session)
+    user: Union[deta.User, None] = __get_user_from_session_and_db(session=request.session)
     access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=(user["access_token"] if user else None), env=env)
     if not access_token:
         return RedirectResponse("/")
@@ -90,41 +92,40 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
 
 @app.post("/choose-projects", response_class=HTMLResponse)
 async def read_projects(request: Request):
-    '''site for the authenticated user to be redirected to post request'''
-    projects: List[asana.Object] = await read_projects_from_form(request=request)
-    deta.put_projects(asana_user_id=get_user_id_from_session(request.session), projects=projects)
-    return RedirectResponse('/finishing', status_code=Status.HTTP_302_FOUND)
+    '''
+        read the choosen projects (setup #2)
+    '''
+    projects: List[asana.Object] = await __read_projects_from_form(request=request)
+    deta.put_projects(asana_user_id=__get_user_id_from_session(request.session), projects=projects)
+    return RedirectResponse('/finish-setup', status_code=Status.HTTP_302_FOUND)
 
 
-@app.get("/finishing", response_class=HTMLResponse)
-async def choose_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
-    '''site for the authenticated user to finish setup'''
-    user: Union[deta.User, None] = get_user_from_session_and_db(request.session)
+@app.get("/finish-setup", response_class=HTMLResponse)
+async def choose_numbering(request: Request):
+    '''
+        confirm the chosen projects (setup #3)
+    '''
+    user: Union[deta.User, None] = __get_user_from_session_and_db(request.session)
     if not user:
         return RedirectResponse("/choose-projects")
-    # 1. auth and validate or redirect
-    _, asana_user, _ = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
-    if not asana_user:
-        return RedirectResponse("/choose-projects")
     # 2. respond
-    return templates.TemplateResponse("choose-numbering.jinja2", {
+    return templates.TemplateResponse("finish-setup.jinja2", {
         "request": request,
-        "asana_user": asana_user,
+        "asana_user": user["access_token"]["data"],
         "projects": user["projects"],
     })
-    # return RedirectResponse("/choose-numbering", status_code=Status.HTTP_302_FOUND)
 
 
 @ app.post("/create-webhooks")
 async def create_weebhook(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
-    user: Union[deta.User, None] = get_user_from_session_and_db(request.session)
+    user: Union[deta.User, None] = __get_user_from_session_and_db(request.session)
     if not user:
-        return RedirectResponse("/finishing")
+        return RedirectResponse("/finish-setup")
     # 1. auth and validate or redirect
     _, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
     if not asana_user or not user["projects"]:
-        return RedirectResponse("/finishing")
+        return RedirectResponse("/finish-setup")
     # 2. create webhook
     projects = user["projects"]
     for project in projects:
@@ -149,13 +150,10 @@ async def receive_weebhook(
     if request.headers.get("X-Hook-Secret"):
         secret: str = request.headers.get("X-Hook-Secret")
         deta.set_project_active(asana_user_id, project_gid, x_hook_secret=secret)
-        response.status_code = Status.HTTP_204_NO_CONTENT
         response.headers["X-Hook-Secret"] = secret
+        response.status_code = Status.HTTP_204_NO_CONTENT
         return None
     if request.headers.get("X-Hook-Signature"):
-        # TODO check the signature is valid!
-        signature: Union[str, None] = request.headers.get("X-Hook-Signature")
-        # TODO end
         user: deta.User = deta.get_user(asana_user_id)
         access_token, _, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
         deta.put_access_token(asana_user_id=user_gid, access_token=access_token)
@@ -166,17 +164,17 @@ async def receive_weebhook(
         task = client.tasks.get_task(task_id)  # pylint: disable=no-member
         task_name = task["name"]
         _, task_number = deta.next_task_number(asana_user_id, project_gid)
-        task_number_str: str = format_task_number(task_number)
+        task_number_str: str = __format_task_number(task_number)
         asana.http.put(
             url=f"tasks/{task_id}", pat=pat,
             json={"data": {"name": f"{task_number_str} {task_name}"}}
         )
-        response.status_code = 200
+        response.status_code = Status.HTTP_204_NO_CONTENT
         return None
     raise Exception("Something went wrong")
 
 
-async def read_projects_from_form(request: Request) -> Coroutine[List[asana.Object], None, None]:
+async def __read_projects_from_form(request: Request) -> Coroutine[List[asana.Object], None, None]:
     '''read project ids selected inside form'''
     form = await request.form()
     project_strs: List[str] = list(form.keys())
@@ -184,39 +182,22 @@ async def read_projects_from_form(request: Request) -> Coroutine[List[asana.Obje
     return projects
 
 
-# async def read_projects_session_db(
-#     request: Request,
-#     delete_after_read: bool = False
-# ) -> Coroutine[Union[List[asana.Object], None], None, None]:
-#     '''read project ids selected inside form after storing in db'''
-#     key: Union[str, None] = request.session.get("projects_choosen")
-#     if not key:
-#         return None
-#     projects_choosen: Union[List[asana.Object], None] = detabase.get(key)["value"]
-#     if not projects_choosen:
-#         return None
-#     if delete_after_read:
-#         detabase.delete(key)
-#         request.session.pop("projects_choosen")
-#     return projects_choosen
-
-
-def get_user_from_session_and_db(session: Dict[str, Any]) -> Union[deta.User, None]:
+def __get_user_from_session_and_db(session: Dict[str, Any]) -> Union[deta.User, None]:
     '''
         read user_id from session and then deta_user from db
         return None if user_id not found in session or deta_user not found in db
     '''
-    asana_user_id: Union[str, None] = get_user_id_from_session(session)
+    asana_user_id: Union[str, None] = __get_user_id_from_session(session)
     return deta.get_user(asana_user_id) if asana_user_id else None
 
 
-def get_user_id_from_session(session: Dict[str, Any]) -> Union[str, None]:
+def __get_user_id_from_session(session: Dict[str, Any]) -> Union[str, None]:
     '''read user_id from session and then asana_access_token from db'''
     asana_user_id: Union[str, None] = session.get("asana_user_id", None)
     return asana_user_id
 
 
-def format_task_number(number: id):
+def __format_task_number(number: id):
     '''gives number in #00x format'''
     if number > 99:
         return f"#{number}"
