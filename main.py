@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 import ast
-from typing import Any, Coroutine, Dict, List, Tuple, Union
+from typing import Any, Coroutine, Dict, List, Literal, Tuple, Union
 
 import asana as asana_python_client
 from fastapi import Depends, FastAPI, Request
@@ -63,7 +63,9 @@ async def oauth_callback(
 
     # store auth_token in db and db key in session
     request.session['asana_user_id'] = asana_user_id
-    deta.put_access_token(asana_user_id=asana_user_id, access_token=access_token, init=True)
+    user: deta.User = deta.put_access_token(asana_user_id=asana_user_id, access_token=access_token, init=True)
+    if user["projects"]:
+        return RedirectResponse("/home")
     return RedirectResponse("/choose-projects")
 
 
@@ -134,7 +136,32 @@ async def create_weebhook(request: Request, env: environment.Env = Depends(envir
             callback_url=f"{env.number_nerd_webhook_callback}/{asana_user['id']}/{project['gid']}",
             pat=pat
         )
-    return None  # todo
+    return None  # todo nav to home
+
+
+@app.get("/home")
+async def home(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''home page for users that once setup projects'''
+    user: deta.User = __get_user_from_session_and_db(request.session)
+    if not user:
+        return RedirectResponse("/")
+    access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
+    if not access_token:
+        return RedirectResponse("/")
+    deta.put_access_token(asana_user_id=access_token['data']['id'], access_token=access_token)
+    if not user["projects"]:
+        return RedirectResponse("/choose-projects")
+    workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
+    for workspace in workspaces:
+        ws_projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
+        for ws_project in ws_projects:
+            ws_project["status"] = __get_project_status(ws_project, user_projects=user["projects"])
+        workspace["projects"] = ws_projects
+    return templates.TemplateResponse("home.jinja2", {
+        "request": request,
+        "asana_user": asana_user,
+        "workspaces": workspaces,
+    })
 
 
 @app.post("/webhook/receive/{user_gid}/{project_gid}")
@@ -209,3 +236,20 @@ async def __request_task_info(request: Request, pat: str) -> Tuple[str, str]:
     task = client.tasks.get_task(task_id)  # pylint: disable=no-member
     task_name = task["name"]
     return (task_id, task_name)
+
+
+def __get_project_status(
+        project: List[asana.Object],
+        user_projects: List[asana.ProjectWithWebhook]
+) -> Literal["new", "inactive", "active"]:
+    '''
+        return projects status wether it
+        - is currently being numbered (active)
+        - was numbered once (inactive, but webhook exists) or
+        - has never been numbered (new)
+    '''
+    if any(project_active["gid"] == project["gid"] for project_active in list(filter(lambda p: p["is_active"], user_projects))):
+        return "active"
+    if any(project_inactive["gid"] == project["gid"] for project_inactive in list(filter(lambda p: not p["is_active"], user_projects))):
+        return "inactive"
+    return "new"

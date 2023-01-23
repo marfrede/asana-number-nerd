@@ -1,0 +1,21 @@
+.input-group {
+	background-color: #fff;
+	display: block;
+	margin: 10px 0;
+	position: relative;
+	max-width: 520px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+}
+
+.input-group .project-label {
+	padding: 12px 0px 12px 30px;
+	display: block;
+	text-align: left;
+	color: #3c454c;
+	position: relative;
+	z-index: 2;
+	transition: color 200ms ease-in;
+	overflow: hidden;
+}

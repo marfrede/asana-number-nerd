@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>Asana Number Nerd</title>
+	<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+	<link rel="stylesheet" href="/static/css/styles.css">
+	<link rel="stylesheet" href="/static/css/project-button-styles.css">
+	<link rel="stylesheet" href="/static/css/workspace-accordion-styles.css">
+</head>
+
+<body>
+	<div class="container">
+		<div class="header-outer">
+			<a href="/" class="header">
+				<img src="/static/assets/appicon.png" alt="" srcset="" width="200px">
+				<h1><span>Asana<br></span><span>Number<br></span><span>Nerd</span></h1>
+			</a>
+		</div>
+		<div class="content">
+			<h1>Home</h1>
+			<p>Here you can see which projects are currently active and which not. You can make changes and add additional
+				projects for task numbering or remove tasks so that the numbering will stop.</p>
+
+			<form action="choose-projects" method="post">
+				<div class="row">
+					<div class="col">
+						<div class="tabs" style="width: 750px;">
+							{% for ws in workspaces %}
+							<div style="margin-bottom: 20px;">
+								<div class="tab">
+									<input class="accordion-input" type="checkbox" id="{{ws['gid']}}">
+									<label class="tab-label" for="{{ws['gid']}}">{{ws['name']}}</label>
+									<div class="tab-content">
+										{% for p in ws["projects"] %}
+										<div class="input-group" style="max-width: 720px;">
+											<label class="project-label" for="{{p}}">{{p['name']}}</label>
+											{% if p["status"]=="active" %}
+											<button class="button-danger">Stop Numbering</button>
+											{% elif p["status"]=="inactive" %}
+											<button class="button-warning">Reactivate Numbering</button>
+											{% else %}
+											<button>Start Numbering</button>
+											{% endif %}
+										</div>
+										{% endfor %}
+									</div>
+								</div>
+							</div>
+							{% endfor %}
+						</div>
+					</div>
+				</div>
+
+				<div class="content" style="text-align: center;">
+					<button type="submit">Next</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</body>
+
+</html>

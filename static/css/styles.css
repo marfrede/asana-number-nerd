@@ -103,6 +103,16 @@ button {
 	border: 0;
 }
 
+.button-warning {
+	background-color: #ffb900;
+	color: #000000;
+}
+
+.button-danger {
+	background-color: #fc636b;
+	color: #000000;
+}
+
 a span {
 	font-size: 1.2em;
 }
