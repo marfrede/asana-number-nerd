@@ -4,7 +4,7 @@ from typing import Tuple
 
 from asana import Client
 
-from classes.local_env import Env
+from modules import environment
 
 
 async def begin_url(client: Client) -> Tuple[str, str]:
@@ -17,7 +17,7 @@ async def begin_url(client: Client) -> Tuple[str, str]:
     return (url, state)
 
 
-def get_client(env: Env) -> Client:
+def get_client(env: environment.Env) -> Client:
     '''cerate specific http asana_oauth_client for asana API with oauth for login'''
     return Client.oauth(
         client_id=env.client_id,

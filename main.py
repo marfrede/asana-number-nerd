@@ -3,8 +3,9 @@
 import ast
 from typing import Any, Coroutine, Dict, List, Union
 
+import asana as asana_python_client
 from fastapi import Depends, FastAPI, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette import status as Status
@@ -68,11 +69,11 @@ async def oauth_callback(
 
 @ app.get("/choose-projects", response_class=HTMLResponse)
 async def choose_projects(request: Request, env: environment.Env = Depends(environment.get_env)):
-    '''site for the authenticated user'''
+    '''site for the authenticated user to choose projects'''
     # 1. auth or redirect
-    user: Union[deta.User, None] = read_user_from_db(session=request.session)
+    user: Union[deta.User, None] = get_user_from_session_and_db(session=request.session)
     access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=(user["access_token"] if user else None), env=env)
-    if (not access_token):
+    if not access_token:
         return RedirectResponse("/")
     # 2. save new acess_token and respond
     deta.put_access_token(asana_user_id=access_token['data']['id'], access_token=access_token)
@@ -87,12 +88,18 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
     })
 
 
-@app.post("/choose-numbering", response_class=HTMLResponse)
-async def choose_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
-    '''site for the authenticated user'''
-    # read projects from form
+@app.post("/choose-projects", response_class=HTMLResponse)
+async def read_projects(request: Request):
+    '''site for the authenticated user to be redirected to post request'''
     projects: List[asana.Object] = await read_projects_from_form(request=request)
-    user: Union[deta.User, None] = deta.put_projects(asana_user_id=request.session.get("asana_user_id", None), projects=projects)
+    deta.put_projects(asana_user_id=get_user_id_from_session(request.session), projects=projects)
+    return RedirectResponse('/finishing', status_code=Status.HTTP_302_FOUND)
+
+
+@app.get("/finishing", response_class=HTMLResponse)
+async def choose_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''site for the authenticated user to finish setup'''
+    user: Union[deta.User, None] = get_user_from_session_and_db(request.session)
     if not user:
         return RedirectResponse("/choose-projects")
     # 1. auth and validate or redirect
@@ -103,54 +110,70 @@ async def choose_numbering(request: Request, env: environment.Env = Depends(envi
     return templates.TemplateResponse("choose-numbering.jinja2", {
         "request": request,
         "asana_user": asana_user,
-        "projects": projects,
+        "projects": user["projects"],
     })
     # return RedirectResponse("/choose-numbering", status_code=Status.HTTP_302_FOUND)
 
 
-# @ app.post("/webhook/create")
-# async def create_weebhook(request: Request, env: environment.Env = Depends(environment.get_env)):
-#     '''create the webhook to listen to create-task events inside given projects'''
-#     # 1. auth and validate or redirect
-#    user: Union[deta.User, None] = read_user_from_db(session=request.session)
-#     access_token, _, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
-#     # 2. save new acess_token and respond
-#    # detabase.put(access_token, f"user_{access_token['data']['id']}")
-#     projects: Union[List[asana.Object], None] = await read_projects_session_db(request=request, delete_after_read=True)
-#     if not pat or not projects:
-#         return RedirectResponse("/choose-projects")
-#     response = asana.http.post(
-#         url="webhooks", pat=pat,
-#         data=asana.webhooks.post_request_body(
-#             project_gid=projects[0]["gid"],
-#             callback_url=env.number_nerd_webhook_callback),
-#     )
-#     if (response.status_code >= 200 and response.status_code < 400):
-#         return response.json()["data"]
-#     return response.json()
+@ app.post("/create-webhooks")
+async def create_weebhook(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''create the webhook to listen to create-task events inside given projects'''
+    user: Union[deta.User, None] = get_user_from_session_and_db(request.session)
+    if not user:
+        return RedirectResponse("/finishing")
+    # 1. auth and validate or redirect
+    _, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
+    if not asana_user or not user["projects"]:
+        return RedirectResponse("/finishing")
+    # 2. create webhook
+    projects = user["projects"]
+    for project in projects:
+        asana.webhooks.post(
+            project_gid=project["gid"],
+            callback_url=f"{env.number_nerd_webhook_callback}/{asana_user['id']}/{project['gid']}",
+            pat=pat
+        )
+    return None  # todo
 
 
-# @app.post("/webhook/receive")
-# async def receive_weebhook(request: Request, response: Response):
-#     '''callback for asana when task created (and for first handshake)'''
-#     pat = "1/1199181200186785:d6752d0cc04c304e22d12e0b57163c14"
-#     secret: Union[str, None] = request.headers.get("X-Hook-Secret")
-#     if secret:
-#         # db.put(secret, f"x_hook_secret_{user_gid}_{project_gid}")
-#         response.status_code = Status.HTTP_204_NO_CONTENT
-#         response.headers["X-Hook-Secret"] = secret
-#         return None
-#     # create a task
-#     body: dict = await request.json()
-#     task_created_gid: str = body["events"][0]["resource"]["gid"]
-#     task_created_name = asana.http.get(url=f"tasks/{task_created_gid}", pat=pat,)["name"]
-#     asana.http.put(
-#         url=f"tasks/{task_created_gid}", pat=pat,
-#         json={"data": {"name": f"{'1'} {task_created_name}"}}
-#     )
-
-
-# HELPER
+@app.post("/webhook/receive/{user_gid}/{project_gid}")
+async def receive_weebhook(
+    request: Request,
+    user_gid: str,
+    project_gid: str,
+    response: Response,
+    env: environment.Env = Depends(environment.get_env)
+):
+    '''callback for asana when task created (and for first handshake)'''
+    asana_user_id = user_gid
+    if request.headers.get("X-Hook-Secret"):
+        secret: str = request.headers.get("X-Hook-Secret")
+        deta.set_project_active(asana_user_id, project_gid, x_hook_secret=secret)
+        response.status_code = Status.HTTP_204_NO_CONTENT
+        response.headers["X-Hook-Secret"] = secret
+        return None
+    if request.headers.get("X-Hook-Signature"):
+        # TODO check the signature is valid!
+        signature: Union[str, None] = request.headers.get("X-Hook-Signature")
+        # TODO end
+        user: deta.User = deta.get_user(asana_user_id)
+        access_token, _, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
+        deta.put_access_token(asana_user_id=user_gid, access_token=access_token)
+        # rename the task created
+        body: dict = await request.json()
+        task_id: str = list(body["events"])[0]["resource"]["gid"]
+        client = asana_python_client.Client.access_token(pat)
+        task = client.tasks.get_task(task_id)  # pylint: disable=no-member
+        task_name = task["name"]
+        _, task_number = deta.next_task_number(asana_user_id, project_gid)
+        task_number_str: str = format_task_number(task_number)
+        asana.http.put(
+            url=f"tasks/{task_id}", pat=pat,
+            json={"data": {"name": f"{task_number_str} {task_name}"}}
+        )
+        response.status_code = 200
+        return None
+    raise Exception("Something went wrong")
 
 
 async def read_projects_from_form(request: Request) -> Coroutine[List[asana.Object], None, None]:
@@ -178,13 +201,25 @@ async def read_projects_from_form(request: Request) -> Coroutine[List[asana.Obje
 #     return projects_choosen
 
 
-def read_user_from_db(session: Dict[str, Any]) -> Union[deta.User, None]:
+def get_user_from_session_and_db(session: Dict[str, Any]) -> Union[deta.User, None]:
     '''
-        read user_id from session and then asana_access_token from db
-        return None if user_id not found in session or access_token not found in db
+        read user_id from session and then deta_user from db
+        return None if user_id not found in session or deta_user not found in db
     '''
+    asana_user_id: Union[str, None] = get_user_id_from_session(session)
+    return deta.get_user(asana_user_id) if asana_user_id else None
+
+
+def get_user_id_from_session(session: Dict[str, Any]) -> Union[str, None]:
+    '''read user_id from session and then asana_access_token from db'''
     asana_user_id: Union[str, None] = session.get("asana_user_id", None)
-    if not asana_user_id:
-        return None
-    user: deta.User = deta.get_user(asana_user_id)
-    return user
+    return asana_user_id
+
+
+def format_task_number(number: id):
+    '''gives number in #00x format'''
+    if number > 99:
+        return f"#{number}"
+    if number > 9:
+        return f"#0{number}"
+    return f"#00{number}"

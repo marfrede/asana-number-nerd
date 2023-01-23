@@ -3,12 +3,12 @@ from typing import List
 
 import requests
 
-from classes.asana.object import Object
+from modules.asana import classes
 
 URL = "https://app.asana.com/api/1.0"
 
 
-def get(url: str, pat: str) -> List[Object]:
+def get(url: str, pat: str) -> List[classes.Object]:
     '''a general asana api get request to a given url'''
     response = requests.get(
         url=f"{URL}/{url}",
@@ -20,7 +20,7 @@ def get(url: str, pat: str) -> List[Object]:
     return None
 
 
-def post(url: str, pat: str, data: dict) -> List[Object]:
+def post(url: str, pat: str, data: dict) -> List[classes.Object]:
     '''a general asana api post request to a given url'''
     response = requests.post(
         url=f"{URL}/{url}",
@@ -33,7 +33,7 @@ def post(url: str, pat: str, data: dict) -> List[Object]:
     return None
 
 
-def put(url: str, pat: str, json: dict) -> List[Object]:
+def put(url: str, pat: str, json: dict) -> List[classes.Object]:
     '''a general asana api put request to a given url'''
     response = requests.put(
         url=f"{URL}/{url}",
