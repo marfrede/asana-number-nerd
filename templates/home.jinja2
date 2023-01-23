@@ -22,40 +22,41 @@
 			<p>Here you can see which projects are currently active and which not. You can make changes and add additional
 				projects for task numbering or remove tasks so that the numbering will stop.</p>
 
-			<form action="choose-projects" method="post">
-				<div class="row">
-					<div class="col">
-						<div class="tabs" style="width: 750px;">
-							{% for ws in workspaces %}
-							<div style="margin-bottom: 20px;">
-								<div class="tab">
-									<input class="accordion-input" type="checkbox" id="{{ws['gid']}}">
-									<label class="tab-label" for="{{ws['gid']}}">{{ws['name']}}</label>
-									<div class="tab-content">
-										{% for p in ws["projects"] %}
-										<div class="input-group" style="max-width: 720px;">
-											<label class="project-label" for="{{p}}">{{p['name']}}</label>
-											{% if p["status"]=="active" %}
+
+			<div class="row">
+				<div class="col">
+					<div class="tabs" style="width: 750px;">
+						{% for ws in workspaces %}
+						<div style="margin-bottom: 20px;">
+							<div class="tab">
+								<input class="accordion-input" type="checkbox" id="{{ws['gid']}}">
+								<label class="tab-label" for="{{ws['gid']}}">{{ws['name']}}</label>
+								<div class="tab-content">
+									{% for p in ws["projects"] %}
+									<div class="input-group" style="max-width: 720px;">
+										<label class="project-label" for="{{p}}">{{p['name']}}</label>
+										{% if p["status"]=="active" %}
+										<form action="stop-numbering/{{p['gid']}}" method="post">
 											<button class="button-danger">Stop Numbering</button>
-											{% elif p["status"]=="inactive" %}
+										</form>
+										{% elif p["status"]=="inactive" %}
+										<form action="reactivate-numbering/{{p['gid']}}" method="post">
 											<button class="button-warning">Reactivate Numbering</button>
-											{% else %}
+										</form>
+										{% else %}
+										<form action="start-numbering/{{p['gid']}}" method="post">
 											<button>Start Numbering</button>
-											{% endif %}
-										</div>
-										{% endfor %}
+										</form>
+										{% endif %}
 									</div>
+									{% endfor %}
 								</div>
 							</div>
-							{% endfor %}
 						</div>
+						{% endfor %}
 					</div>
 				</div>
-
-				<div class="content" style="text-align: center;">
-					<button type="submit">Next</button>
-				</div>
-			</form>
+			</div>
 		</div>
 	</div>
 </body>
