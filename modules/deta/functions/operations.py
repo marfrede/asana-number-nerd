@@ -1,7 +1,7 @@
 '''detabase operations'''
 
 
-from typing import List, Union, cast
+from typing import List, Tuple, Union, cast
 
 from deta import Deta
 
@@ -42,13 +42,29 @@ def put_projects(asana_user_id: str, projects: List[asana.Object]) -> User:
     return user
 
 
-# def put_projects_webhook_secret(asana_user_id: str, project_gid: str, x_hook_secret: str) -> User:
-#     '''store and update projects to user["projects"]'''
-#     user: User = get_user(asana_user_id)
-#     project = next(hook for hook in user["projects"] if hook["gid"] is project_gid)
-#     project["x_hook_secret"] = x_hook_secret
-#     __store_user(asana_user_id, user)
-#     return user
+def set_project_active(asana_user_id: str, project_gid: str, x_hook_secret: str) -> User:
+    '''store and update projects to user["projects"]'''
+    user: User = get_user(asana_user_id)
+    project: asana.ProjectWithWebhook = None
+    for pro in user["projects"]:
+        if pro["gid"] == project_gid:
+            project = pro
+    project["x_hook_secret"] = x_hook_secret
+    project["is_active"] = True
+    __store_user(asana_user_id, user)
+    return user
+
+
+def next_task_number(asana_user_id: str, project_gid: str) -> Tuple[User, int]:
+    '''increment task number id in project'''
+    user: User = get_user(asana_user_id)
+    project: asana.ProjectWithWebhook = None
+    for pro in user["projects"]:
+        if pro["gid"] == project_gid:
+            project = pro
+    project["task_counter"] = project["task_counter"] + 1
+    __store_user(asana_user_id, user)
+    return user, project["task_counter"]
 
 
 def __store_user(asana_user_id: str, user: User) -> None:
