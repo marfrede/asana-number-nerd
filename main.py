@@ -1,7 +1,7 @@
 '''asana number nerdx'''
 
 import ast
-from typing import Any, Coroutine, Dict, List, Union
+from typing import Any, Coroutine, Dict, List, Tuple, Union
 
 import asana as asana_python_client
 from fastapi import Depends, FastAPI, Request
@@ -63,7 +63,7 @@ async def oauth_callback(
 
     # store auth_token in db and db key in session
     request.session['asana_user_id'] = asana_user_id
-    deta.put_access_token(asana_user_id=asana_user_id, access_token=access_token)
+    deta.put_access_token(asana_user_id=asana_user_id, access_token=access_token, init=True)
     return RedirectResponse("/choose-projects")
 
 
@@ -158,11 +158,7 @@ async def receive_weebhook(
         access_token, _, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
         deta.put_access_token(asana_user_id=user_gid, access_token=access_token)
         # rename the task created
-        body: dict = await request.json()
-        task_id: str = list(body["events"])[0]["resource"]["gid"]
-        client = asana_python_client.Client.access_token(pat)
-        task = client.tasks.get_task(task_id)  # pylint: disable=no-member
-        task_name = task["name"]
+        task_id, task_name = await __request_task_info(request, pat)
         _, task_number = deta.next_task_number(asana_user_id, project_gid)
         task_number_str: str = __format_task_number(task_number)
         asana.http.put(
@@ -204,3 +200,12 @@ def __format_task_number(number: id):
     if number > 9:
         return f"#0{number}"
     return f"#00{number}"
+
+
+async def __request_task_info(request: Request, pat: str) -> Tuple[str, str]:
+    body: dict = await request.json()
+    task_id: str = list(body["events"])[0]["resource"]["gid"]
+    client = asana_python_client.Client.access_token(pat)
+    task = client.tasks.get_task(task_id)  # pylint: disable=no-member
+    task_name = task["name"]
+    return (task_id, task_name)

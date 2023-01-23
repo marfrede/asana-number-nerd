@@ -17,17 +17,14 @@ detabase = deta.Base("ann_db")  # This how to connect to or create a database.
 def get_user(asana_user_id: str) -> User:
     '''get user and all their values'''
     user: Union[User, None] = detabase.get(key=__get_key(asana_user_id))
-    if not user:
-        return {
-            "access_token": None,
-            "projects": [],
-        }
     return user
 
 
-def put_access_token(asana_user_id: str, access_token: asana.Token) -> User:
+def put_access_token(asana_user_id: str, access_token: asana.Token, init: bool = False) -> User:
     '''store and update access_token to user["access_token"]'''
-    user: User = get_user(asana_user_id)
+    user: Union[User, None] = get_user(asana_user_id)
+    if init:
+        user = user if user else {"access_token": None, "projects": []}
     user["access_token"] = access_token
     __store_user(asana_user_id, user)
     return user
@@ -35,7 +32,7 @@ def put_access_token(asana_user_id: str, access_token: asana.Token) -> User:
 
 def put_projects(asana_user_id: str, projects: List[asana.Object]) -> User:
     '''store and update projects to user["projects"]'''
-    user: User = get_user(asana_user_id)
+    user: Union[User, None] = get_user(asana_user_id)
     projects_with_webhook: List[asana.ProjectWithWebhook] = list(map(__transform_project_to_project_with_webhook, projects))
     user["projects"] = projects_with_webhook
     __store_user(asana_user_id, user)
@@ -44,7 +41,7 @@ def put_projects(asana_user_id: str, projects: List[asana.Object]) -> User:
 
 def set_project_active(asana_user_id: str, project_gid: str, x_hook_secret: str) -> User:
     '''store and update projects to user["projects"]'''
-    user: User = get_user(asana_user_id)
+    user: Union[User, None] = get_user(asana_user_id)
     project: asana.ProjectWithWebhook = None
     for pro in user["projects"]:
         if pro["gid"] == project_gid:
