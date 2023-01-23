@@ -74,13 +74,9 @@ async def choose_projects(request: Request, env: environment.Env = Depends(envir
     '''
         choose-projects (setup #2)
     '''
-    # 1. auth or redirect
-    user: Union[deta.User, None] = __get_user_from_session_and_db(session=request.session)
-    access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=(user["access_token"] if user else None), env=env)
-    if not access_token:
-        return RedirectResponse("/")
-    # 2. save new acess_token and respond
-    deta.put_access_token(asana_user_id=access_token['data']['id'], access_token=access_token)
+    _, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    if response:
+        return response
     workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
     for workspace in workspaces:
         projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
@@ -121,41 +117,35 @@ async def choose_numbering(request: Request):
 @ app.post("/create-webhooks")
 async def create_weebhook(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
-    user: Union[deta.User, None] = __get_user_from_session_and_db(request.session)
-    if not user:
-        return RedirectResponse("/finish-setup")
-    # 1. auth and validate or redirect
-    _, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
-    if not asana_user or not user["projects"]:
-        return RedirectResponse("/finish-setup")
+    deta_user, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env, error_redirect_url="/finish-setup")
+    if response:
+        return response
     # 2. create webhook
-    projects = user["projects"]
+    if not deta_user["projects"]:
+        return RedirectResponse("/finish-setup")
+    projects = deta_user["projects"]
     for project in projects:
         asana.webhooks.post(
             project_gid=project["gid"],
             callback_url=f"{env.number_nerd_webhook_callback}/{asana_user['id']}/{project['gid']}",
             pat=pat
         )
-    return None  # todo nav to home
+    return RedirectResponse('/home', status_code=Status.HTTP_302_FOUND)
 
 
 @app.get("/home")
 async def home(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''home page for users that once setup projects'''
-    user: deta.User = __get_user_from_session_and_db(request.session)
-    if not user:
-        return RedirectResponse("/")
-    access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
-    if not access_token:
-        return RedirectResponse("/")
-    deta.put_access_token(asana_user_id=access_token['data']['id'], access_token=access_token)
-    if not user["projects"]:
+    deta_user, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    if response:
+        return response
+    if not deta_user["projects"]:
         return RedirectResponse("/choose-projects")
     workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
     for workspace in workspaces:
         ws_projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
         for ws_project in ws_projects:
-            ws_project["status"] = __get_project_status(ws_project, user_projects=user["projects"])
+            ws_project["status"] = __get_project_status(ws_project, user_projects=deta_user["projects"])
         workspace["projects"] = ws_projects
     return templates.TemplateResponse("home.jinja2", {
         "request": request,
@@ -195,6 +185,51 @@ async def receive_weebhook(
         response.status_code = Status.HTTP_204_NO_CONTENT
         return None
     raise Exception("Something went wrong")
+
+
+@app.get("stop-numbering/{project_gid}")
+async def stop_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''stop numbering a project by setting the webhook to active to false'''
+    deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    if response:
+        return response
+    return None
+
+
+@app.get("reactivate-numbering/{project_gid}")
+async def reactivate_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''reactive numbering another project by setting the webhook to active again'''
+    deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    if response:
+        return response
+    return None
+
+
+@app.get("start-numbering/{project_gid}")
+async def start_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''start numbering another project by adding a webhook'''
+    deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    if response:
+        return response
+    return None
+
+
+def __read_user_from_session_db_and_refresh_token(request: Request, env: environment.Env, error_redirect_url: str = "/") -> Tuple[
+    Union[deta.User, None],
+    Union[asana.Token, None],
+    Union[asana.User, None],
+    Union[str, None],
+    Union[RedirectResponse, None],
+]:
+    response: RedirectResponse = None
+    user: Union[deta.User, None] = __get_user_from_session_and_db(request.session)
+    if not user:
+        return None, None, None, None, RedirectResponse(error_redirect_url)
+    access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
+    if not access_token:
+        return user, None, None, None, RedirectResponse(error_redirect_url)
+    deta.put_access_token(asana_user_id=asana_user['id'], access_token=access_token)
+    return user, access_token, asana_user, pat, response
 
 
 async def __read_projects_from_form(request: Request) -> Coroutine[List[asana.Object], None, None]:
