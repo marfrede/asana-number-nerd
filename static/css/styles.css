@@ -5,7 +5,7 @@
 
 body {
 	font-family: Inter, sans-serif;
-	margin: 0;
+	margin: 30px 0 0 0;
 	padding: 0;
 }
 
@@ -122,4 +122,22 @@ a span {
 	border-radius: 20px;
 	object-fit: cover;
 	height: 256px;
+}
+
+.headline {
+	top: 0;
+	position: absolute;
+	width: 100%;
+	background-color: #353839;
+	color: #ffffff;
+	display: flex;
+	align-items: center;
+	justify-content: space-evenly;
+	padding: 2px;
+}
+
+.headline a {
+	text-decoration: none;
+	color: aliceblue;
+	cursor: pointer;
 }
