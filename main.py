@@ -13,7 +13,16 @@ from starlette.middleware.sessions import SessionMiddleware
 from modules import asana, deta, environment
 
 # init fastapi
-app = FastAPI()
+app = FastAPI(
+    title="Asana Number Nerd",
+    description="Asana Number Nerd has just one simple task: to number your Asana tasks.",
+    version="0.0.1",
+    contact={
+        "name": "Marvin Frede",
+        "url": "https://asana-number-nerd.com",
+        "email": "marvinfrede@gmx.de",
+    }
+)
 app.add_middleware(SessionMiddleware, secret_key="KpGtHMS3XgH5b7z9us!@e79GlY$b")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
