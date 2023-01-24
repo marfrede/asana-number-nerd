@@ -116,3 +116,10 @@ button {
 a span {
 	font-size: 1.2em;
 }
+
+.showcase {
+	margin: 40px auto;
+	border-radius: 20px;
+	object-fit: cover;
+	height: 256px;
+}
