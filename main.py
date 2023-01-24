@@ -154,12 +154,13 @@ async def receive_weebhook(
         deta.put_access_token(asana_user_id=user_gid, access_token=access_token)
         # rename the task created
         task_id, task_name = await __request_task_info(request, pat)
-        _, task_number = deta.next_task_number(asana_user_id, project_gid)
-        task_number_str: str = __format_task_number(task_number)
-        asana.http.put(
-            url=f"tasks/{task_id}", pat=pat,
-            json={"data": {"name": f"{task_number_str} {task_name}"}}
-        )
+        if (task_name == "") or (task_name and task_name[0] != "#"):
+            _, task_number = deta.next_task_number(asana_user_id, project_gid)
+            task_name_new = f"{__format_task_number(task_number)} {task_name}"
+            asana.http.put(
+                url=f"tasks/{task_id}", pat=pat,
+                json={"data": {"name": task_name_new}}
+            )
         response.status_code = Status.HTTP_204_NO_CONTENT
         return None
     raise Exception("Something went wrong")
@@ -261,7 +262,7 @@ def __get_user_id_from_session(session: Dict[str, Any]) -> Union[str, None]:
     return asana_user_id
 
 
-def __format_task_number(number: id):
+def __format_task_number(number: int) -> str:
     '''gives number in #00x format'''
     if number > 99:
         return f"#{number}"
@@ -270,7 +271,7 @@ def __format_task_number(number: id):
     return f"#00{number}"
 
 
-async def __request_task_info(request: Request, pat: str) -> Tuple[str, str]:
+async def __request_task_info(request: Request, pat: str) -> Tuple[Union[str, None], Union[str, None]]:
     body: dict = await request.json()
     try:
         task_id: str = list(body["events"])[0]["resource"]["gid"]
