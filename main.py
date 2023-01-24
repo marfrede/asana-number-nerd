@@ -188,22 +188,24 @@ async def home(request: Request, env: environment.Env = Depends(environment.get_
     })
 
 
-@app.post("/pause-numbering/{project}")
-async def pause_numbering(request: Request, project: str, env: environment.Env = Depends(environment.get_env)):
+@app.post("/pause-numbering/{project_gid}")
+async def pause_numbering(request: Request, project_gid: str, env: environment.Env = Depends(environment.get_env)):
     '''pause numbering a project by setting the webhook to active to false'''
-    deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    _, _, asana_user, _, response = __read_user_from_session_db_and_refresh_token(request, env)
+    deta.set_project_inactive(asana_user_id=asana_user["id"], project_gid=project_gid)
     if response:
         return response
-    return None
+    return RedirectResponse('/home', status_code=Status.HTTP_302_FOUND)
 
 
-@app.post("/reactivate-numbering/{project}")
-async def reactivate_numbering(request: Request, project: str, env: environment.Env = Depends(environment.get_env)):
+@app.post("/reactivate-numbering/{project_gid}")
+async def reactivate_numbering(request: Request, project_gid: str, env: environment.Env = Depends(environment.get_env)):
     '''reactive numbering another project by setting the webhook to active again'''
-    deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    _, _, asana_user, _, response = __read_user_from_session_db_and_refresh_token(request, env)
+    deta.set_project_active(asana_user_id=asana_user["id"], project_gid=project_gid)
     if response:
         return response
-    return None
+    return RedirectResponse('/home', status_code=Status.HTTP_302_FOUND)
 
 
 @app.post("/start-numbering/{project}")

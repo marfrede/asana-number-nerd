@@ -39,15 +39,28 @@ def append_projects(asana_user_id: str, projects: List[asana.Object]) -> User:
     return user
 
 
-def set_project_active(asana_user_id: str, project_gid: str, x_hook_secret: str) -> User:
-    '''store and update projects to user["projects"]'''
+def set_project_active(asana_user_id: str, project_gid: str, x_hook_secret: str = None) -> User:
+    '''for a given project set is_active to true and store x-hook-secret'''
     user: Union[User, None] = get_user(asana_user_id)
     project: asana.ProjectWithWebhook = None
     for pro in user["projects"]:
         if pro["gid"] == project_gid:
             project = pro
-    project["x_hook_secret"] = x_hook_secret
+    if x_hook_secret is not None:
+        project["x_hook_secret"] = x_hook_secret
     project["is_active"] = True
+    __store_user(asana_user_id, user)
+    return user
+
+
+def set_project_inactive(asana_user_id: str, project_gid: str) -> User:
+    '''for a given project set is_active to false'''
+    user: Union[User, None] = get_user(asana_user_id)
+    project: asana.ProjectWithWebhook = None
+    for pro in user["projects"]:
+        if pro["gid"] == project_gid:
+            project = pro
+    project["is_active"] = False
     __store_user(asana_user_id, user)
     return user
 
@@ -59,6 +72,8 @@ def next_task_number(asana_user_id: str, project_gid: str, task_gid: str) -> Uni
     for pro in user["projects"]:
         if pro["gid"] == project_gid:
             project = pro
+    if not __webhook_active(user=user, project_index=user["projects"].index(project)):
+        return None
     if __task_already_numbered(user=user, project_index=user["projects"].index(project), task_gid=task_gid):
         return None
     project["task_counter"] = project["task_counter"] + 1
@@ -92,3 +107,7 @@ def __task_already_numbered(user: User, project_index: int, task_gid: str) -> bo
     user["projects"][project_index]["latest_task_gid"] = task_gid
     __store_user(user["access_token"]["data"]["id"], user)
     return False
+
+
+def __webhook_active(user: User, project_index: int) -> bool:
+    return "is_active" in user["projects"][project_index] and user["projects"][project_index]["is_active"]
