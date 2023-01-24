@@ -1,6 +1,7 @@
 '''class env'''
 
 from functools import lru_cache
+from typing import NamedTuple
 
 from pydantic import BaseSettings
 
@@ -16,7 +17,7 @@ class Env(BaseSettings):
     # deta project
     deta_project_key: str
 
-    class Config:
+    class Config(NamedTuple):
         '''read variables from dotenv file'''
         env_file = ".env"
 

@@ -116,7 +116,9 @@ async def choose_numbering(request: Request):
 @ app.post("/create-webhooks")
 async def create_weebhook(request: Request, env: environment.Env = Depends(environment.get_env)):
     '''create the webhook to listen to create-task events inside given projects'''
-    deta_user, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env, error_redirect_url="/finish-setup")
+    deta_user, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(
+        request, env, error_redirect_url="/finish-setup"
+    )
     if response:
         return response
     # 2. create webhook
