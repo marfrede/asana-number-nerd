@@ -18,3 +18,4 @@ class ProjectWithWebhook(Object):
     webhook_gid: Union[str, None]
     is_active: bool
     task_counter: int
+    latest_task_gid: str  # latest task gid to avoid double numbering

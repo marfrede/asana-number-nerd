@@ -93,7 +93,7 @@ async def read_projects(request: Request):
         read the choosen projects (setup #2)
     '''
     projects: List[asana.Object] = await __read_projects_from_form(request=request)
-    deta.put_projects(asana_user_id=__get_user_id_from_session(request.session), projects=projects)
+    deta.append_projects(asana_user_id=__get_user_id_from_session(request.session), projects=projects)
     return RedirectResponse('/finish-setup', status_code=Status.HTTP_302_FOUND)
 
 
@@ -155,12 +155,13 @@ async def receive_weebhook(
         # rename the task created
         task_id, task_name = await __request_task_info(request, pat)
         if (task_name == "") or (task_name and task_name[0] != "#"):
-            _, task_number = deta.next_task_number(asana_user_id, project_gid)
-            task_name_new = f"{__format_task_number(task_number)} {task_name}"
-            asana.http.put(
-                url=f"tasks/{task_id}", pat=pat,
-                json={"data": {"name": task_name_new}}
-            )
+            task_number = deta.next_task_number(asana_user_id=asana_user_id, project_gid=project_gid, task_gid=task_id)
+            if task_number:
+                task_name_new = f"{__format_task_number(task_number)} {task_name}"
+                asana.http.put(
+                    url=f"tasks/{task_id}", pat=pat,
+                    json={"data": {"name": task_name_new}}
+                )
         response.status_code = Status.HTTP_204_NO_CONTENT
         return None
     raise Exception("Something went wrong")
@@ -212,7 +213,7 @@ async def start_numbering(request: Request, project: str, env: environment.Env =
     _, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
     if response:
         return response
-    deta.put_projects(asana_user_id=asana_user["id"], projects=[project])
+    deta.append_projects(asana_user_id=asana_user["id"], projects=[project])
     asana.webhooks.post(
         project_gid=project["gid"],
         callback_url=f"{env.number_nerd_webhook_callback}/{asana_user['id']}/{project['gid']}",
