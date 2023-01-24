@@ -211,7 +211,7 @@ async def start_numbering(request: Request, project: str, env: environment.Env =
     _, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
     if response:
         return response
-    deta.put_projects(asana_user_id=__get_user_id_from_session(request.session), projects=[project])
+    deta.put_projects(asana_user_id=asana_user["id"], projects=[project])
     asana.webhooks.post(
         project_gid=project["gid"],
         callback_url=f"{env.number_nerd_webhook_callback}/{asana_user['id']}/{project['gid']}",
