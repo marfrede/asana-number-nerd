@@ -1,5 +1,5 @@
 '''classes imporrtant for objects from/for asana API'''
-from typing import List, Literal, TypedDict, Union
+from typing import Literal, TypedDict, Union
 
 
 class Object(TypedDict):
