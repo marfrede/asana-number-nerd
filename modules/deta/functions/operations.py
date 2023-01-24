@@ -34,7 +34,7 @@ def put_projects(asana_user_id: str, projects: List[asana.Object]) -> User:
     '''store and update projects to user["projects"]'''
     user: Union[User, None] = get_user(asana_user_id)
     projects_with_webhook: List[asana.ProjectWithWebhook] = list(map(__transform_project_to_project_with_webhook, projects))
-    user["projects"] = projects_with_webhook
+    user["projects"] = (user["projects"] if user["projects"] else []) + projects_with_webhook
     __store_user(asana_user_id, user)
     return user
 

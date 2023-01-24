@@ -1,5 +1,5 @@
 '''asana http helper functions'''
-from typing import List
+from typing import List, Union
 
 import requests
 
@@ -8,7 +8,7 @@ from modules.asana import classes
 URL = "https://app.asana.com/api/1.0"
 
 
-def get(url: str, pat: str) -> List[classes.Object]:
+def get(url: str, pat: str) -> Union[Union[List[classes.Object], classes.Object], None]:
     '''a general asana api get request to a given url'''
     response = requests.get(
         url=f"{URL}/{url}",
@@ -20,7 +20,7 @@ def get(url: str, pat: str) -> List[classes.Object]:
     return None
 
 
-def post(url: str, pat: str, data: dict) -> List[classes.Object]:
+def post(url: str, pat: str, data: dict) -> Union[Union[List[classes.Object], classes.Object], None]:
     '''a general asana api post request to a given url'''
     response = requests.post(
         url=f"{URL}/{url}",
@@ -33,7 +33,7 @@ def post(url: str, pat: str, data: dict) -> List[classes.Object]:
     return None
 
 
-def put(url: str, pat: str, json: dict) -> List[classes.Object]:
+def put(url: str, pat: str, json: dict) -> Union[Union[List[classes.Object], classes.Object], None]:
     '''a general asana api put request to a given url'''
     response = requests.put(
         url=f"{URL}/{url}",

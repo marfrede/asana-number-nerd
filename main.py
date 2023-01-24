@@ -3,7 +3,6 @@
 import ast
 from typing import Any, Coroutine, Dict, List, Literal, Tuple, Union
 
-import asana as asana_python_client
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -133,27 +132,6 @@ async def create_weebhook(request: Request, env: environment.Env = Depends(envir
     return RedirectResponse('/home', status_code=Status.HTTP_302_FOUND)
 
 
-@app.get("/home")
-async def home(request: Request, env: environment.Env = Depends(environment.get_env)):
-    '''home page for users that once setup projects'''
-    deta_user, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
-    if response:
-        return response
-    if not deta_user["projects"]:
-        return RedirectResponse("/choose-projects")
-    workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
-    for workspace in workspaces:
-        ws_projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
-        for ws_project in ws_projects:
-            ws_project["status"] = __get_project_status(ws_project, user_projects=deta_user["projects"])
-        workspace["projects"] = ws_projects
-    return templates.TemplateResponse("home.jinja2", {
-        "request": request,
-        "asana_user": asana_user,
-        "workspaces": workspaces,
-    })
-
-
 @app.post("/webhook/receive/{user_gid}/{project_gid}")
 async def receive_weebhook(
     request: Request,
@@ -187,8 +165,29 @@ async def receive_weebhook(
     raise Exception("Something went wrong")
 
 
-@app.get("stop-numbering/{project_gid}")
-async def stop_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+@app.get("/home")
+async def home(request: Request, env: environment.Env = Depends(environment.get_env)):
+    '''home page for users that once setup projects'''
+    deta_user, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    if response:
+        return response
+    if not deta_user["projects"]:
+        return RedirectResponse("/choose-projects")
+    workspaces: List[asana.Object] = asana.http.get(url="workspaces", pat=pat)
+    for workspace in workspaces:
+        ws_projects: List[asana.Object] = asana.http.get(url=f"workspaces/{workspace['gid']}/projects", pat=pat)
+        for ws_project in ws_projects:
+            ws_project["status"] = __get_project_status(ws_project, user_projects=deta_user["projects"])
+        workspace["projects"] = ws_projects
+    return templates.TemplateResponse("home.jinja2", {
+        "request": request,
+        "asana_user": asana_user,
+        "workspaces": workspaces,
+    })
+
+
+@app.post("/stop-numbering/{project}")
+async def stop_numbering(request: Request, project: str, env: environment.Env = Depends(environment.get_env)):
     '''stop numbering a project by setting the webhook to active to false'''
     deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
     if response:
@@ -196,8 +195,8 @@ async def stop_numbering(request: Request, env: environment.Env = Depends(enviro
     return None
 
 
-@app.get("reactivate-numbering/{project_gid}")
-async def reactivate_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+@app.post("/reactivate-numbering/{project}")
+async def reactivate_numbering(request: Request, project: str, env: environment.Env = Depends(environment.get_env)):
     '''reactive numbering another project by setting the webhook to active again'''
     deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
     if response:
@@ -205,13 +204,20 @@ async def reactivate_numbering(request: Request, env: environment.Env = Depends(
     return None
 
 
-@app.get("start-numbering/{project_gid}")
-async def start_numbering(request: Request, env: environment.Env = Depends(environment.get_env)):
+@app.post("/start-numbering/{project}")
+async def start_numbering(request: Request, project: str, env: environment.Env = Depends(environment.get_env)):
     '''start numbering another project by adding a webhook'''
-    deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
+    project: asana.Object = ast.literal_eval(project)
+    _, _, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
     if response:
         return response
-    return None
+    deta.put_projects(asana_user_id=__get_user_id_from_session(request.session), projects=[project])
+    asana.webhooks.post(
+        project_gid=project["gid"],
+        callback_url=f"{env.number_nerd_webhook_callback}/{asana_user['id']}/{project['gid']}",
+        pat=pat
+    )
+    return RedirectResponse('/home', status_code=Status.HTTP_302_FOUND)
 
 
 def __read_user_from_session_db_and_refresh_token(request: Request, env: environment.Env, error_redirect_url: str = "/") -> Tuple[
@@ -224,10 +230,10 @@ def __read_user_from_session_db_and_refresh_token(request: Request, env: environ
     response: RedirectResponse = None
     user: Union[deta.User, None] = __get_user_from_session_and_db(request.session)
     if not user:
-        return None, None, None, None, RedirectResponse(error_redirect_url)
+        return None, None, None, None, RedirectResponse(error_redirect_url, status_code=Status.HTTP_302_FOUND)
     access_token, asana_user, pat = asana.auth.refresh_token(old_access_token=user["access_token"], env=env)
     if not access_token:
-        return user, None, None, None, RedirectResponse(error_redirect_url)
+        return user, None, None, None, RedirectResponse(error_redirect_url, status_code=Status.HTTP_302_FOUND)
     deta.put_access_token(asana_user_id=asana_user['id'], access_token=access_token)
     return user, access_token, asana_user, pat, response
 
@@ -266,11 +272,16 @@ def __format_task_number(number: id):
 
 async def __request_task_info(request: Request, pat: str) -> Tuple[str, str]:
     body: dict = await request.json()
-    task_id: str = list(body["events"])[0]["resource"]["gid"]
-    client = asana_python_client.Client.access_token(pat)
-    task = client.tasks.get_task(task_id)  # pylint: disable=no-member
-    task_name = task["name"]
-    return (task_id, task_name)
+    try:
+        task_id: str = list(body["events"])[0]["resource"]["gid"]
+        task: Union[asana.Object, None] = asana.http.get(url=f"tasks/{task_id}", pat=pat)
+    except Exception:  # pylint: disable=broad-except
+        return None, None
+    else:
+        if task:
+            task_name = task["name"]
+            return (task_id, task_name)
+        return task_id, None
 
 
 def __get_project_status(
