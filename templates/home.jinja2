@@ -20,7 +20,7 @@
 		<div class="content">
 			<h1>Home</h1>
 			<p>Here you can see which projects are currently active and which not. You can make changes and add additional
-				projects for task numbering or remove tasks so that the numbering will stop.</p>
+				projects for task numbering or remove projects so that the numbering will stop.</p>
 
 
 			<div class="row">
@@ -36,8 +36,8 @@
 									<div class="input-group" style="max-width: 720px;">
 										<label class="project-label" for="{{p}}">{{p['name']}}</label>
 										{% if p["status"]=="active" %}
-										<form action="stop-numbering/{{p['gid']}}" method="post">
-											<button class="button-danger">Stop Numbering</button>
+										<form action="pause-numbering/{{p['gid']}}" method="post">
+											<button class="button-danger">Pause Numbering</button>
 										</form>
 										{% elif p["status"]=="inactive" %}
 										<form action="reactivate-numbering/{{p['gid']}}" method="post">

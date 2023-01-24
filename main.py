@@ -188,9 +188,9 @@ async def home(request: Request, env: environment.Env = Depends(environment.get_
     })
 
 
-@app.post("/stop-numbering/{project}")
-async def stop_numbering(request: Request, project: str, env: environment.Env = Depends(environment.get_env)):
-    '''stop numbering a project by setting the webhook to active to false'''
+@app.post("/pause-numbering/{project}")
+async def pause_numbering(request: Request, project: str, env: environment.Env = Depends(environment.get_env)):
+    '''pause numbering a project by setting the webhook to active to false'''
     deta_user, asana_token, asana_user, pat, response = __read_user_from_session_db_and_refresh_token(request, env)
     if response:
         return response
