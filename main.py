@@ -36,7 +36,7 @@ async def start(request: Request, env: environment.Env = Depends(environment.get
     '''
     url, state = await asana.oauth.begin_url(client=asana.oauth.get_client(env))
     request.session["state"] = state
-    return templates.TemplateResponse("index.jinja2", {"request": request, "authorize_asana_url": url})
+    return templates.TemplateResponse("start.jinja2", {"request": request, "authorize_asana_url": url})
 
 
 @ app.get("/oauth/callback", response_class=RedirectResponse)
