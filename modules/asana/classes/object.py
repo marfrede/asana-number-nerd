@@ -1,5 +1,5 @@
 '''classes imporrtant for objects from/for asana API'''
-from typing import Literal, TypedDict, Union
+from typing import List, Literal, TypedDict, Union
 
 
 class Object(TypedDict):
@@ -18,3 +18,4 @@ class ProjectWithWebhook(Object):
     webhook_gid: Union[str, None]
     is_active: bool
     task_counter: int
+    latest_task_gid: str  # latest task gid to avoid double numbering

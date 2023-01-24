@@ -1,7 +1,7 @@
 '''detabase operations'''
 
 
-from typing import List, Tuple, Union, cast
+from typing import List, Union, cast
 
 from deta import Deta
 
@@ -30,7 +30,7 @@ def put_access_token(asana_user_id: str, access_token: asana.Token, init: bool =
     return user
 
 
-def put_projects(asana_user_id: str, projects: List[asana.Object]) -> User:
+def append_projects(asana_user_id: str, projects: List[asana.Object]) -> User:
     '''store and update projects to user["projects"]'''
     user: Union[User, None] = get_user(asana_user_id)
     projects_with_webhook: List[asana.ProjectWithWebhook] = list(map(__transform_project_to_project_with_webhook, projects))
@@ -52,16 +52,18 @@ def set_project_active(asana_user_id: str, project_gid: str, x_hook_secret: str)
     return user
 
 
-def next_task_number(asana_user_id: str, project_gid: str) -> Tuple[User, int]:
+def next_task_number(asana_user_id: str, project_gid: str, task_gid: str) -> Union[int, None]:
     '''increment task number id in project'''
     user: User = get_user(asana_user_id)
     project: asana.ProjectWithWebhook = None
     for pro in user["projects"]:
         if pro["gid"] == project_gid:
             project = pro
+    if __task_already_numbered(user=user, project_index=user["projects"].index(project), task_gid=task_gid):
+        return None
     project["task_counter"] = project["task_counter"] + 1
     __store_user(asana_user_id, user)
-    return user, project["task_counter"]
+    return project["task_counter"]
 
 
 def __store_user(asana_user_id: str, user: User) -> None:
@@ -82,3 +84,11 @@ def __transform_project_to_project_with_webhook(project: asana.Object) -> asana.
     project_with_webhook["is_active"] = False
     project_with_webhook["task_counter"] = 0
     return project_with_webhook
+
+
+def __task_already_numbered(user: User, project_index: int, task_gid: str) -> bool:
+    if "latest_task_gid" in user["projects"][project_index] and user["projects"][project_index]["latest_task_gid"] == task_gid:
+        return True
+    user["projects"][project_index]["latest_task_gid"] = task_gid
+    __store_user(user["access_token"]["data"]["id"], user)
+    return False
