@@ -1,4 +1,4 @@
-'''asana number nerdx'''
+'''asana number nerd'''
 
 import ast
 from typing import Any, Coroutine, Dict, List, Literal, Tuple, Union
