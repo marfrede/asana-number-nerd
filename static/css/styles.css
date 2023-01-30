@@ -18,8 +18,10 @@ body {
 }
 
 .container {
+	min-width: 1000px;
 	width: 60%;
 	margin: 0 auto;
+	margin-bottom: 200px;
 }
 
 .header-outer {
@@ -125,9 +127,10 @@ a span {
 }
 
 .headline {
-	top: 0;
 	position: absolute;
+	top: 0;
 	width: 100%;
+	min-width: 1000px;
 	background-color: #353839;
 	color: #ffffff;
 	display: flex;
@@ -140,4 +143,33 @@ a span {
 	text-decoration: none;
 	color: aliceblue;
 	cursor: pointer;
+}
+
+.buy-me-a-coffee {
+	position: fixed;
+	top: 40px;
+	right: 20px;
+
+	display: flex;
+	flex-flow: column nowrap;
+	justify-content: flex-start;
+	align-items: center;
+}
+
+@media only screen and (max-width: 1100px) {
+	.buy-me-a-coffee {
+		top: unset;
+		bottom: -2px;
+		width: 200px;
+
+		display: flex;
+		flex-flow: row-reverse nowrap;
+		justify-content: flex-start;
+		align-items: baseline;
+	}
+
+	.buy-me-a-coffee img {
+		margin-left: -8px;
+		z-index: -1;
+	}
 }
