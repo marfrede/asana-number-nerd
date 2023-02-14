@@ -12,7 +12,7 @@ body {
 .login-info {
 	max-width: 240px;
 	position: absolute;
-	top: 20px;
+	left: 20px;
 	right: 25px;
 	text-align: right;
 }
